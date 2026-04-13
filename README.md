@@ -75,6 +75,9 @@ The adapter creates the following data points:
 <!--
 	### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+- (skvarel) Removed: React and mui
+
 ### 0.2.0 (2026-04-06)
 - (skvarel) Updated: Minimum Node.js version requirement to >=22
 
