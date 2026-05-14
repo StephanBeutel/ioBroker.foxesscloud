@@ -1,4 +1,7 @@
 # Older changes
+## 0.1.8 (2026-03-12)
+- (skvarel) Fixed: Issue detected by repository checker.
+
 ## 0.1.7 (2026-02-28)
 - (skvarel) Fixed: Issue detected by repository checker.
 
