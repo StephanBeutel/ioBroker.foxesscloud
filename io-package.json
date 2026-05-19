@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "foxesscloud",
-    "version": "0.2.3",
+    "version": "0.3.0",
     "news": {
+      "0.3.0": {
+        "en": "Added inverter internal temperature datapoint in °C",
+        "de": "Inverter interner Temperaturdatenpunkt in °C hinzugefügt",
+        "ru": "Добавлен инвертор внутренней температуры точки данных в °C",
+        "pt": "Ponto de dados interno de temperatura do inversor adicionado em °C",
+        "nl": "Toegevoegd omvormer interne temperatuur datapoint in °C",
+        "fr": "Ajout du point de données de température interne de l'onduleur en °C",
+        "it": "Aggiunto inverter temperatura interna datapoint in °C",
+        "es": "Añadido inversor de datos de temperatura interna en °C",
+        "pl": "Dodano inwerter wewnętrzny punkt temperatury w °C",
+        "uk": "Додано інверторну внутрішню температуру точки в °C",
+        "zh-cn": "°C中增加的反转内温数据点"
+      },
       "0.2.3": {
         "en": "Fixed issue from adapter checker",
         "de": "Problem behoben von Adapter Checker",
@@ -69,19 +82,6 @@
         "zh-cn": "改进:启用GitHub Actions工作流程中的节点.js 24支持.\n固定:由仓库检查器检测到的问题."
       },
       "0.1.8": {
-        "en": "Fixed: Issue detected by repository checker.",
-        "de": "Behoben: Ausgestellt durch Repository Checker.",
-        "ru": "Исправлено: проблема, обнаруженная проверкой хранилища.",
-        "pt": "Corrigido: Problema detectado pelo verificador de repositório.",
-        "nl": "Vast: Uitgave gedetecteerd door repository checker.",
-        "fr": "Correction : problème détecté par le vérificateur du dépôt.",
-        "it": "Risolto: Problema rilevato da repository checker.",
-        "es": "Corregido: Problema detectado por repositorio.",
-        "pl": "Naprawiono: Wydanie wykryte przez sprawdzacz repozytorium.",
-        "uk": "Виправлено: Виявлено репозиторійним чекером.",
-        "zh-cn": "固定:由仓库检查器检测到的问题."
-      },
-      "0.1.7": {
         "en": "Fixed: Issue detected by repository checker.",
         "de": "Behoben: Ausgestellt durch Repository Checker.",
         "ru": "Исправлено: проблема, обнаруженная проверкой хранилища.",

@@ -79,7 +79,7 @@ The adapter creates the following data points:
 <!--
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 0.3.0 (2026-05-19)
 - (inventwo) Added inverter internal temperature datapoint in °C
 
 ### 0.2.3 (2026-05-14)
@@ -93,10 +93,6 @@ The adapter creates the following data points:
 
 ### 0.2.0 (2026-04-06)
 - (skvarel) Updated: Minimum Node.js version requirement to >=22
-
-### 0.1.9 (2026-03-13)
-- (skvarel) Improved: Enabled Node.js 24 support in GitHub Actions workflows.
-- (skvarel) Fixed: Issue detected by repository checker.
 
 ## Older changes
 - [CHANGELOG_OLD.md](CHANGELOG_OLD.md)

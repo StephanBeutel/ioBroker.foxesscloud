@@ -1,4 +1,8 @@
 # Older changes
+## 0.1.9 (2026-03-13)
+- (skvarel) Improved: Enabled Node.js 24 support in GitHub Actions workflows.
+- (skvarel) Fixed: Issue detected by repository checker.
+
 ## 0.1.8 (2026-03-12)
 - (skvarel) Fixed: Issue detected by repository checker.
 
