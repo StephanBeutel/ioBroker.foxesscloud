@@ -267,6 +267,31 @@ class Foxesscloud extends utils.Adapter {
 			},
 			native: {},
 		});
+
+		await this.setObjectNotExistsAsync("invTemperature", {
+			type: "state",
+			common: {
+				name: {
+					en: "Inverter Internal Temperature",
+					de: "Interne Wechselrichtertemperatur",
+					ru: "Внутренняя температура инвертора",
+					pt: "Temperatura interna do inversor",
+					nl: "Interne omvormertemperatuur",
+					fr: "Temperature interne de l'onduleur",
+					it: "Temperatura interna dell'inverter",
+					es: "Temperatura interna del inversor",
+					pl: "Wewnętrzna temperatura falownika",
+					uk: "Внутрішня температура інвертора",
+					"zh-cn": "逆变器内部温度",
+				},
+				type: "number",
+				role: "value.temperature",
+				unit: "°C",
+				read: true,
+				write: false,
+			},
+			native: {},
+		});
 	}
 
 	/**
@@ -285,6 +310,7 @@ class Foxesscloud extends utils.Adapter {
 					"feedinPower",
 					"batChargePower",
 					"batDischargePower",
+					"invTemperation",
 				],
 			});
 
@@ -348,44 +374,61 @@ class Foxesscloud extends utils.Adapter {
 						this.setState("info.connection", true, true);
 
 						// Update all states
-						if (datas.length > 0 && datas[0] && datas[0].value !== undefined) {
-							const pvPower = parseFloat(datas[0].value.toFixed(3));
+						const getDataPointByVariable = variable =>
+							datas.find(entry => entry && entry.variable === variable);
+
+						const pvPowerData = getDataPointByVariable("pvPower");
+						if (pvPowerData && pvPowerData.value !== undefined) {
+							const pvPower = parseFloat(pvPowerData.value.toFixed(3));
 							this.setState("pvPower", pvPower, true);
 						}
 
-						if (datas.length > 1 && datas[1] && datas[1].value !== undefined) {
-							const genPower = parseFloat(datas[1].value.toFixed(3));
+						const generationPowerData = getDataPointByVariable("generationPower");
+						if (generationPowerData && generationPowerData.value !== undefined) {
+							const genPower = parseFloat(generationPowerData.value.toFixed(3));
 							this.setState("generationPower", genPower, true);
 						}
 
-						if (datas.length > 2 && datas[2] && datas[2].value !== undefined) {
-							const soc = datas[2].value;
+						const socData = getDataPointByVariable("SoC") || getDataPointByVariable("SoC_1");
+						if (socData && socData.value !== undefined) {
+							const soc = socData.value;
 							this.setState("soc", soc, true);
 						}
 
-						if (datas.length > 3 && datas[3] && datas[3].value !== undefined) {
-							const load = parseFloat(datas[3].value.toFixed(3));
+						const loadsPowerData = getDataPointByVariable("loadsPower");
+						if (loadsPowerData && loadsPowerData.value !== undefined) {
+							const load = parseFloat(loadsPowerData.value.toFixed(3));
 							this.setState("load", load, true);
 						}
 
-						if (datas.length > 4 && datas[4] && datas[4].value !== undefined) {
-							const gridCons = parseFloat(datas[4].value.toFixed(3));
+						const gridConsumptionData = getDataPointByVariable("gridConsumptionPower");
+						if (gridConsumptionData && gridConsumptionData.value !== undefined) {
+							const gridCons = parseFloat(gridConsumptionData.value.toFixed(3));
 							this.setState("gridConsumption", gridCons, true);
 						}
 
-						if (datas.length > 5 && datas[5] && datas[5].value !== undefined) {
-							const feedin = parseFloat(datas[5].value.toFixed(3));
+						const feedinPowerData = getDataPointByVariable("feedinPower");
+						if (feedinPowerData && feedinPowerData.value !== undefined) {
+							const feedin = parseFloat(feedinPowerData.value.toFixed(3));
 							this.setState("feedinPower", feedin, true);
 						}
 
-						if (datas.length > 6 && datas[6] && datas[6].value !== undefined) {
-							const charge = parseFloat(datas[6].value.toFixed(3));
+						const batChargePowerData = getDataPointByVariable("batChargePower");
+						if (batChargePowerData && batChargePowerData.value !== undefined) {
+							const charge = parseFloat(batChargePowerData.value.toFixed(3));
 							this.setState("batCharge", charge, true);
 						}
 
-						if (datas.length > 7 && datas[7] && datas[7].value !== undefined) {
-							const discharge = parseFloat(datas[7].value.toFixed(3));
+						const batDischargePowerData = getDataPointByVariable("batDischargePower");
+						if (batDischargePowerData && batDischargePowerData.value !== undefined) {
+							const discharge = parseFloat(batDischargePowerData.value.toFixed(3));
 							this.setState("batDischarge", discharge, true);
+						}
+
+						const invTemperatureData = getDataPointByVariable("invTemperation");
+						if (invTemperatureData && invTemperatureData.value !== undefined) {
+							const invTemperature = parseFloat(invTemperatureData.value.toFixed(1));
+							this.setState("invTemperature", invTemperature, true);
 						}
 
 						this.log.debug("Data successfully updated");
