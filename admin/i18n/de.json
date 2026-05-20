@@ -4,6 +4,7 @@
     "Aktualisierungsintervall in Sekunden (Empfohlen: 60, Minimum: 60, API-Limit: 1440 Calls/Tag)": "Aktualisierungsintervall in Sekunden (Empfohlen: 60, Minimum: 60, API-Limit: 1440 Aufrufe/Tag)",
     "Cost Calculation (Optional)": "Kostenberechnung (Optional)",
     "Daily statistics": "Tägliche Statistiken",
+    "Daily start value (kWh)": "Startwert Tag (kWh)",
     "Data Collection Options": "Datenerfassungsoptionen",
     "Enable PV Power JSON generation": "PV-Leistungs-JSON-Generierung aktivieren",
     "FoxESS Cloud API Configuration": "FoxESS Cloud API-Konfiguration",
@@ -11,13 +12,19 @@
     "Generate monthly energy data (all 12 months)": "Monatliche Energiedaten generieren (alle 12 Monate)",
     "Generate weekly energy data (last 4 weeks)": "Wöchentliche Energiedaten generieren (letzte 4 Wochen)",
     "Monthly statistics": "Monatliche Statistiken",
+    "Monthly start value (kWh)": "Startwert Monat (kWh)",
     "Optional: Enter price per kWh for cost calculations. Leave empty or 0 to disable price display": "Optional: Preis pro kWh eingeben für Kostenberechnungen. Leer lassen oder 0 zum Deaktivieren der Preisanzeige",
+    "Optional starting value for the current month if the adapter was enabled later": "Optionaler Startwert fuer den aktuellen Monat, wenn der Adapter erst spaeter aktiviert wurde",
+    "Optional starting value for the current week if the adapter was enabled later": "Optionaler Startwert fuer die aktuelle Woche, wenn der Adapter erst spaeter aktiviert wurde",
+    "Optional starting value for today if the adapter was enabled after production already started": "Optionaler Startwert fuer heute, wenn der Adapter erst nach Produktionsbeginn aktiviert wurde",
     "Price per kWh (€ - optional)": "Preis pro kWh (€ - optional)",
     "PV Power Energy Statistics (JSON)": "PV-Leistungs-Energiestatistiken (JSON)",
     "Serial Number (SN)": "Seriennummer (SN)",
     "Seriennummer vom Inverter": "Seriennummer des Wechselrichters",
+    "Start Values For Current Periods": "Startwerte fuer laufende Zeitraeume",
     "tab_general": "Allgemein",
     "tab_statistics": "Statistiken",
     "Update Interval (seconds)": "Aktualisierungsintervall (Sekunden)",
-    "Weekly statistics": "Wöchentliche Statistiken"
+    "Weekly start value (kWh)": "Startwert Woche (kWh)",
+    "Weekly statistics": "Woechentliche Statistiken"
 }

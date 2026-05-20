@@ -122,6 +122,47 @@
                     "lg": 6,
                     "xl": 6,
                     "help": "Optional: Enter price per kWh for cost calculations. Leave empty or 0 to disable price display"
+                },
+                "_startValues": {
+                    "type": "header",
+                    "text": "Start Values For Current Periods",
+                    "size": 4
+                },
+                "pvPowerJSONStartDaily": {
+                    "type": "number",
+                    "label": "Daily start value (kWh)",
+                    "min": 0,
+                    "step": 0.001,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 4,
+                    "lg": 4,
+                    "xl": 4,
+                    "help": "Optional starting value for today if the adapter was enabled after production already started"
+                },
+                "pvPowerJSONStartWeekly": {
+                    "type": "number",
+                    "label": "Weekly start value (kWh)",
+                    "min": 0,
+                    "step": 0.001,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 4,
+                    "lg": 4,
+                    "xl": 4,
+                    "help": "Optional starting value for the current week if the adapter was enabled later"
+                },
+                "pvPowerJSONStartMonthly": {
+                    "type": "number",
+                    "label": "Monthly start value (kWh)",
+                    "min": 0,
+                    "step": 0.001,
+                    "xs": 12,
+                    "sm": 12,
+                    "md": 4,
+                    "lg": 4,
+                    "xl": 4,
+                    "help": "Optional starting value for the current month if the adapter was enabled later"
                 }
             }
         }

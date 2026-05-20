@@ -726,7 +726,7 @@ class Foxesscloud extends utils.Adapter {
 		}
 
 		const now = new Date();
-		const dayKey = now.toISOString().split("T")[0]; // YYYY-MM-DD
+		const dayKey = this.getDateKey(now);
 		const weekKey = this.getWeekKey(now);
 		const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`; // YYYY-MM
 
@@ -735,7 +735,7 @@ class Foxesscloud extends utils.Adapter {
 			if (this.lastUpdateDate !== null && this.currentDayTotal > 0) {
 				this.rotateDailyData(this.lastUpdateDate, this.currentDayTotal);
 			}
-			this.currentDayTotal = 0;
+			this.currentDayTotal = this.getConfiguredStartValue(this.config.pvPowerJSONStartDaily);
 			this.lastUpdateDate = dayKey;
 		}
 
@@ -743,7 +743,7 @@ class Foxesscloud extends utils.Adapter {
 			if (this.lastUpdateWeek !== null && this.currentWeekTotal > 0) {
 				this.rotateWeeklyData(this.lastUpdateWeek, this.currentWeekTotal);
 			}
-			this.currentWeekTotal = 0;
+			this.currentWeekTotal = this.getConfiguredStartValue(this.config.pvPowerJSONStartWeekly);
 			this.lastUpdateWeek = weekKey;
 		}
 
@@ -751,7 +751,7 @@ class Foxesscloud extends utils.Adapter {
 			if (this.lastUpdateMonth !== null && this.currentMonthTotal > 0) {
 				this.rotateMonthlyData(this.lastUpdateMonth, this.currentMonthTotal);
 			}
-			this.currentMonthTotal = 0;
+			this.currentMonthTotal = this.getConfiguredStartValue(this.config.pvPowerJSONStartMonthly);
 			this.lastUpdateMonth = monthKey;
 		}
 
@@ -771,6 +771,150 @@ class Foxesscloud extends utils.Adapter {
 		if (this.config.pvPowerJSON_monthly) {
 			await this.generateAndUpdateMonthlyJson();
 		}
+	}
+
+	/**
+	 * Normalize an optional numeric config value.
+	 *
+	 * @param {unknown} value - Config value
+	 * @returns {number} Parsed number or 0
+	 */
+	getConfiguredStartValue(value) {
+		const parsedValue = Number(value);
+		return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0;
+	}
+
+	/**
+	 * Get a local calendar date key in format YYYY-MM-DD.
+	 *
+	 * @param {Date} date - Date object
+	 * @returns {string} Date key
+	 */
+	getDateKey(date) {
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+	}
+
+	/**
+	 * Get localized weekday name.
+	 *
+	 * @param {Date} date - Date object
+	 * @returns {string} Localized weekday name
+	 */
+	getDayName(date) {
+		const dayNames = {
+			en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+			de: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
+		};
+		const lang = this.systemLanguage === "de" ? "de" : "en";
+		return dayNames[lang][date.getDay()];
+	}
+
+	/**
+	 * Get localized month name.
+	 *
+	 * @param {number} monthIndex - Month index from 0-11
+	 * @returns {string} Localized month name
+	 */
+	getMonthName(monthIndex) {
+		const monthNames = {
+			en: [
+				"January",
+				"February",
+				"March",
+				"April",
+				"May",
+				"June",
+				"July",
+				"August",
+				"September",
+				"October",
+				"November",
+				"December",
+			],
+			de: [
+				"Januar",
+				"Februar",
+				"März",
+				"April",
+				"Mai",
+				"Juni",
+				"Juli",
+				"August",
+				"September",
+				"Oktober",
+				"November",
+				"Dezember",
+			],
+		};
+		const lang = this.systemLanguage === "de" ? "de" : "en";
+		return monthNames[lang][monthIndex];
+	}
+
+	/**
+	 * Create a statistics entry.
+	 *
+	 * @param {string} key - Internal period key
+	 * @param {string} label - Output label
+	 * @param {number} totalEnergy - Total energy in kWh
+	 * @returns {{key: string, date: string, value: string, price?: string}} Statistics entry
+	 */
+	createStatisticsEntry(key, label, totalEnergy) {
+		const entry = {
+			key: key,
+			date: label,
+			value: parseFloat(totalEnergy.toFixed(3)).toString(),
+		};
+
+		if (this.config.kwhPrice && this.config.kwhPrice > 0) {
+			entry.price = parseFloat((totalEnergy * this.config.kwhPrice).toFixed(2)).toString();
+		}
+
+		return entry;
+	}
+
+	/**
+	 * Get all dates for the current ISO week from Monday to Sunday.
+	 *
+	 * @param {Date} date - Reference date
+	 * @returns {string[]} Date keys in format YYYY-MM-DD
+	 */
+	getWeekDateKeys(date) {
+		const referenceDate = new Date(date);
+		referenceDate.setHours(0, 0, 0, 0);
+		const isoDay = referenceDate.getDay() || 7;
+		referenceDate.setDate(referenceDate.getDate() - isoDay + 1);
+
+		const dateKeys = [];
+		for (let offset = 0; offset < 7; offset++) {
+			const currentDate = new Date(referenceDate);
+			currentDate.setDate(referenceDate.getDate() + offset);
+			dateKeys.push(this.getDateKey(currentDate));
+		}
+
+		return dateKeys;
+	}
+
+	/**
+	 * Get the current and previous ISO week keys.
+	 *
+	 * @param {Date} date - Reference date
+	 * @param {number} count - Number of weeks to return
+	 * @returns {string[]} Week keys in chronological order
+	 */
+	getRecentWeekKeys(date, count) {
+		const referenceDate = new Date(date);
+		referenceDate.setHours(0, 0, 0, 0);
+		const isoDay = referenceDate.getDay() || 7;
+		referenceDate.setDate(referenceDate.getDate() - isoDay + 1);
+
+		const weekKeys = [];
+		for (let offset = count - 1; offset >= 0; offset--) {
+			const currentWeekDate = new Date(referenceDate);
+			currentWeekDate.setDate(referenceDate.getDate() - offset * 7);
+			weekKeys.push(this.getWeekKey(currentWeekDate));
+		}
+
+		return weekKeys;
 	}
 
 	/**
@@ -796,21 +940,7 @@ class Foxesscloud extends utils.Adapter {
 	 */
 	rotateDailyData(dateKey, totalEnergy) {
 		const dateObj = new Date(dateKey);
-		const dayNames = {
-			en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-			de: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
-		};
-		const lang = this.systemLanguage === "de" ? "de" : "en";
-		const dayName = dayNames[lang][dateObj.getDay()];
-
-		const entry = {
-			date: dayName,
-			value: parseFloat(totalEnergy.toFixed(3)).toString(),
-		};
-
-		if (this.config.kwhPrice && this.config.kwhPrice > 0) {
-			entry.price = parseFloat((totalEnergy * this.config.kwhPrice).toFixed(2)).toString();
-		}
+		const entry = this.createStatisticsEntry(dateKey, this.getDayName(dateObj), totalEnergy);
 
 		// Keep only last 7 days
 		this.pvPowerJsonData.daily.push(entry);
@@ -826,14 +956,7 @@ class Foxesscloud extends utils.Adapter {
 	 * @param {number} totalEnergy - Total energy in kWh
 	 */
 	rotateWeeklyData(weekKey, totalEnergy) {
-		const entry = {
-			date: `KW ${weekKey.split("-W")[1]}`,
-			value: parseFloat(totalEnergy.toFixed(3)).toString(),
-		};
-
-		if (this.config.kwhPrice && this.config.kwhPrice > 0) {
-			entry.price = parseFloat((totalEnergy * this.config.kwhPrice).toFixed(2)).toString();
-		}
+		const entry = this.createStatisticsEntry(weekKey, `KW ${weekKey.split("-W")[1]}`, totalEnergy);
 
 		// Keep only last 4 weeks
 		this.pvPowerJsonData.weekly.push(entry);
@@ -850,50 +973,11 @@ class Foxesscloud extends utils.Adapter {
 	 */
 	rotateMonthlyData(monthKey, totalEnergy) {
 		const [, month] = monthKey.split("-").map(Number);
-		const monthNames = {
-			en: [
-				"January",
-				"February",
-				"March",
-				"April",
-				"May",
-				"June",
-				"July",
-				"August",
-				"September",
-				"October",
-				"November",
-				"December",
-			],
-			de: [
-				"Januar",
-				"Februar",
-				"März",
-				"April",
-				"Mai",
-				"Juni",
-				"Juli",
-				"August",
-				"September",
-				"Oktober",
-				"November",
-				"Dezember",
-			],
-		};
-		const lang = this.systemLanguage === "de" ? "de" : "en";
-		const monthName = monthNames[lang][month - 1];
-
-		const entry = {
-			date: monthName,
-			value: parseFloat(totalEnergy.toFixed(3)).toString(),
-		};
-
-		if (this.config.kwhPrice && this.config.kwhPrice > 0) {
-			entry.price = parseFloat((totalEnergy * this.config.kwhPrice).toFixed(2)).toString();
-		}
+		const monthName = this.getMonthName(month - 1);
+		const entry = this.createStatisticsEntry(monthKey, monthName, totalEnergy);
 
 		// Find and update or add month
-		const existingIndex = this.pvPowerJsonData.monthly.findIndex(e => e.date === monthName);
+		const existingIndex = this.pvPowerJsonData.monthly.findIndex(e => e.key === monthKey);
 		if (existingIndex >= 0) {
 			this.pvPowerJsonData.monthly[existingIndex] = entry;
 		} else {
@@ -905,7 +989,27 @@ class Foxesscloud extends utils.Adapter {
 	 * Generate and update daily JSON state
 	 */
 	async generateAndUpdateDailyJson() {
-		const data = [...this.pvPowerJsonData.daily];
+		const todayKey = this.getDateKey(new Date());
+		const data = this.getWeekDateKeys(new Date()).map(dateKey => {
+			if (dateKey > todayKey) {
+				return this.createStatisticsEntry(dateKey, this.getDayName(new Date(`${dateKey}T00:00:00`)), 0);
+			}
+
+			if (dateKey === this.lastUpdateDate) {
+				return this.createStatisticsEntry(
+					dateKey,
+					this.getDayName(new Date(`${dateKey}T00:00:00`)),
+					this.currentDayTotal,
+				);
+			}
+
+			const existingEntry = this.pvPowerJsonData.daily.find(entry => entry.key === dateKey);
+			if (existingEntry) {
+				return existingEntry;
+			}
+
+			return this.createStatisticsEntry(dateKey, this.getDayName(new Date(`${dateKey}T00:00:00`)), 0);
+		});
 
 		// Calculate total
 		let totalValue = 0;
@@ -925,15 +1029,29 @@ class Foxesscloud extends utils.Adapter {
 			sumEntry.price = parseFloat(totalPrice.toFixed(2)).toString();
 		}
 
-		data.push(sumEntry);
-		await this.setState("pvPowerJSON.daily", JSON.stringify(data), true);
+		await this.setState(
+			"pvPowerJSON.daily",
+			JSON.stringify([...data, sumEntry].map(({ key, ...entry }) => entry)),
+			true,
+		);
 	}
 
 	/**
 	 * Generate and update weekly JSON state
 	 */
 	async generateAndUpdateWeeklyJson() {
-		const data = [...this.pvPowerJsonData.weekly];
+		const data = this.getRecentWeekKeys(new Date(), 4).map(weekKey => {
+			if (weekKey === this.lastUpdateWeek) {
+				return this.createStatisticsEntry(weekKey, `KW ${weekKey.split("-W")[1]}`, this.currentWeekTotal);
+			}
+
+			const existingEntry = this.pvPowerJsonData.weekly.find(entry => entry.key === weekKey);
+			if (existingEntry) {
+				return existingEntry;
+			}
+
+			return this.createStatisticsEntry(weekKey, `KW ${weekKey.split("-W")[1]}`, 0);
+		});
 
 		// Calculate total
 		let totalValue = 0;
@@ -953,59 +1071,31 @@ class Foxesscloud extends utils.Adapter {
 			sumEntry.price = parseFloat(totalPrice.toFixed(2)).toString();
 		}
 
-		data.push(sumEntry);
-		await this.setState("pvPowerJSON.weekly", JSON.stringify(data), true);
+		await this.setState(
+			"pvPowerJSON.weekly",
+			JSON.stringify([...data, sumEntry].map(({ key, ...entry }) => entry)),
+			true,
+		);
 	}
 
 	/**
 	 * Generate and update monthly JSON state
 	 */
 	async generateAndUpdateMonthlyJson() {
-		// Ensure all 12 months are present
-		const monthNames = {
-			en: [
-				"January",
-				"February",
-				"March",
-				"April",
-				"May",
-				"June",
-				"July",
-				"August",
-				"September",
-				"October",
-				"November",
-				"December",
-			],
-			de: [
-				"Januar",
-				"Februar",
-				"März",
-				"April",
-				"Mai",
-				"Juni",
-				"Juli",
-				"August",
-				"September",
-				"Oktober",
-				"November",
-				"Dezember",
-			],
-		};
-		const lang = this.systemLanguage === "de" ? "de" : "en";
-		const months = monthNames[lang];
-
 		const data = [];
-		for (const monthName of months) {
-			const entry = this.pvPowerJsonData.monthly.find(e => e.date === monthName);
+		const currentYear = new Date().getFullYear();
+		for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+			const monthKey = `${currentYear}-${String(monthIndex + 1).padStart(2, "0")}`;
+			if (monthKey === this.lastUpdateMonth) {
+				data.push(this.createStatisticsEntry(monthKey, this.getMonthName(monthIndex), this.currentMonthTotal));
+				continue;
+			}
+
+			const entry = this.pvPowerJsonData.monthly.find(e => e.key === monthKey);
 			if (entry) {
 				data.push(entry);
 			} else {
-				data.push({
-					date: monthName,
-					value: "0",
-					...(this.config.kwhPrice && this.config.kwhPrice > 0 && { price: "0" }),
-				});
+				data.push(this.createStatisticsEntry(monthKey, this.getMonthName(monthIndex), 0));
 			}
 		}
 
@@ -1027,8 +1117,11 @@ class Foxesscloud extends utils.Adapter {
 			sumEntry.price = parseFloat(totalPrice.toFixed(2)).toString();
 		}
 
-		data.push(sumEntry);
-		await this.setState("pvPowerJSON.monthly", JSON.stringify(data), true);
+		await this.setState(
+			"pvPowerJSON.monthly",
+			JSON.stringify([...data, sumEntry].map(({ key, ...entry }) => entry)),
+			true,
+		);
 	}
 
 	/**

@@ -59,9 +59,9 @@ The adapter creates the following data points:
 - `foxesscloud.0.info.connection` - Connection status
 
 ### PV Power JSON Statistics (if enabled)
-- `foxesscloud.0.pvPowerJSON.daily` - Daily energy statistics (JSON format) - last 7 days
-- `foxesscloud.0.pvPowerJSON.weekly` - Weekly energy statistics (JSON format) - last 4 weeks
-- `foxesscloud.0.pvPowerJSON.monthly` - Monthly energy statistics (JSON format) - all 12 months
+- `foxesscloud.0.pvPowerJSON.daily` - Daily energy statistics (JSON format) - current week from Monday to Sunday
+- `foxesscloud.0.pvPowerJSON.weekly` - Weekly energy statistics (JSON format) - last 4 weeks including the current week
+- `foxesscloud.0.pvPowerJSON.monthly` - Monthly energy statistics (JSON format) - all 12 months including the current month
 
 ## Installation
 
@@ -73,10 +73,11 @@ The adapter creates the following data points:
    - **Update Interval**: Data refresh interval in seconds (default: 60, minimum: 60)
 4. Optionally enable PV Power JSON Statistics:
    - **Enable PV Power JSON generation**: Activate JSON table generation for VIS widgets
-   - **Daily statistics**: Generate daily energy data (last 7 days)
-   - **Weekly statistics**: Generate weekly energy data (last 4 weeks)
-   - **Monthly statistics**: Generate monthly energy data (all 12 months)
+   - **Daily statistics**: Generate daily energy data for the current week (Monday-Sunday)
+   - **Weekly statistics**: Generate weekly energy data (last 4 weeks including the current week)
+   - **Monthly statistics**: Generate monthly energy data (all 12 months including the current month)
    - **Price per kWh**: Optional - enter your electricity price per kWh for cost calculations
+   - **Daily / Weekly / Monthly start value**: Optional initial kWh values for the running periods if the adapter is enabled after production already started
 5. Save and start the instance
 
 ### How to get your API credentials
@@ -98,6 +99,11 @@ The JSON tables contain energy data with the following structure:
 [
   {"date": "Monday", "value": "1.904", "price": "0.58"},
   {"date": "Tuesday", "value": "4.653", "price": "1.42"},
+   {"date": "Wednesday", "value": "0.417", "price": "0.13"},
+   {"date": "Thursday", "value": "0", "price": "0"},
+   {"date": "Friday", "value": "0", "price": "0"},
+   {"date": "Saturday", "value": "0", "price": "0"},
+   {"date": "Sunday", "value": "0", "price": "0"},
   {"date": "Total", "value": "6.843", "price": "2.09"}
 ]
 ```
@@ -108,9 +114,11 @@ The JSON tables contain energy data with the following structure:
 
 ### Data Collection
 
-- **Daily**: Accumulates PV power over each calendar day, keeps last 7 days
-- **Weekly**: Accumulates weekly data (Monday-Sunday), keeps last 4 weeks
-- **Monthly**: Accumulates monthly data (1st-last day), keeps all 12 months
+- **Daily**: Shows the current calendar week from Monday to Sunday and updates the current day live
+- **Weekly**: Accumulates weekly data (Monday-Sunday), keeps the last 4 weeks, and includes the running week
+- **Monthly**: Accumulates monthly data (1st-last day), keeps all 12 months, and includes the running month
+
+If the adapter is enabled while production is already running, you can configure optional start values for the current day, current week, and current month. These values are added once at the beginning of the respective running period.
 
 The language of date labels (day/week/month names) automatically adapts to your ioBroker system language:
 - **German** (de): Montag, Dienstag, January, Februar, etc.
@@ -136,7 +144,9 @@ The language of date labels (day/week/month names) automatically adapts to your 
 	### **WORK IN PROGRESS**
 -->
 ### **WORK IN PROGRESS**
-- (inventwo) Added PV Power JSON statistics (daily, weekly, monthly) for VIS widget integration with optional cost calculation per kWh
+- (skvarel) Added configurable start values for the running day, week, and month in PV Power JSON statistics
+- (skvarel) Adjusted the daily JSON table to show the current week from Monday to Sunday and include the running period totals
+- (skvarel) Added PV Power JSON statistics (daily, weekly, monthly) for VIS widget integration with optional cost calculation per kWh
 
 ### 0.4.0 (2026-05-19)
 - (skvarel) Added PV string 1 and string 2 power datapoints (pv1Power, pv2Power)
