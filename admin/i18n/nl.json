@@ -15,7 +15,7 @@
     "Inverter Serial Number": "Serienummer van de omvormer",
     "Monthly start value (kWh)": "Maandelijkse startwaarde (kWh)",
     "Monthly statistics": "Maandelijkse statistieken",
-    "Note on Extended Statistics: These statistics show data for the current day/week/month/year only. For historical data, trend analysis, or extended time ranges, please use additional statistics adapters like iobroker.history or iobroker.influxdb.": "Opmerking over uitgebreide statistieken: deze statistieken tonen alleen gegevens voor de huidige dag/week/maand/jaar. Voor historische gegevens, trendanalyse of langere tijdsperioden kunt u aanvullende statistische adapters gebruiken, zoals iobroker.history of iobroker.influxdb.",
+    "Note on Extended Statistics": "Opmerking over uitgebreide statistieken: deze statistieken tonen alleen gegevens voor de huidige dag/week/maand/jaar. Voor historische gegevens, trendanalyse of langere tijdsperioden kunt u aanvullende statistische adapters gebruiken, zoals iobroker.history of iobroker.influxdb.",
     "Optional starting value for the current month if the adapter was enabled later": "Optionele startwaarde voor de huidige maand als de adapter later werd ingeschakeld",
     "Optional starting value for the current week if the adapter was enabled later": "Optionele startwaarde voor de huidige week als de adapter later werd ingeschakeld",
     "Optional starting value for today if the adapter was enabled after production already started": "Optionele startwaarde voor vandaag als de adapter werd ingeschakeld nadat de productie al was gestart",

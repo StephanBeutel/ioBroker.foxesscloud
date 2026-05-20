@@ -15,7 +15,7 @@
     "Inverter Serial Number": "Seriennummer des Wechselrichters",
     "Monthly start value (kWh)": "Startwert Monat (kWh)",
     "Monthly statistics": "Monatliche Statistiken",
-    "Note on Extended Statistics: These statistics show data for the current day/week/month/year only. For historical data, trend analysis, or extended time ranges, please use additional statistics adapters like iobroker.history or iobroker.influxdb.": "Hinweis zu erweiterten Statistiken: Diese Statistiken zeigen Daten nur für den aktuellen Tag/Woche/Monat/Jahr. Für historische Daten, Trendanalysen oder erweiterte Zeiträume nutzen Sie bitte zusätzliche Statistik-Adapter wie iobroker.history oder iobroker.influxdb.",
+    "Note on Extended Statistics": "Hinweis zu erweiterten Statistiken: Diese Statistiken zeigen Daten nur für den aktuellen Tag/Woche/Monat/Jahr. Für historische Daten, Trendanalysen oder erweiterte Zeiträume nutzen Sie bitte zusätzliche Statistik-Adapter wie iobroker.history oder iobroker.influxdb.",
     "Optional starting value for the current month if the adapter was enabled later": "Optionaler Startwert fuer den aktuellen Monat, wenn der Adapter erst spaeter aktiviert wurde",
     "Optional starting value for the current week if the adapter was enabled later": "Optionaler Startwert fuer die aktuelle Woche, wenn der Adapter erst spaeter aktiviert wurde",
     "Optional starting value for today if the adapter was enabled after production already started": "Optionaler Startwert fuer heute, wenn der Adapter erst nach Produktionsbeginn aktiviert wurde",

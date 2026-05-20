@@ -15,7 +15,7 @@
     "Inverter Serial Number": "逆变器序列号",
     "Monthly start value (kWh)": "每月起始值（kWh）",
     "Monthly statistics": "每月统计",
-    "Note on Extended Statistics: These statistics show data for the current day/week/month/year only. For historical data, trend analysis, or extended time ranges, please use additional statistics adapters like iobroker.history or iobroker.influxdb.": "关于扩展统计数据的注意事项：这些统计数据仅显示当天/周/月/年的数据。对于历史数据、趋势分析或扩展时间范围，请使用其他统计适配器，例如 iobroker.history 或 iobroker.influxdb。",
+    "Note on Extended Statistics": "关于扩展统计数据的注意事项：这些统计数据仅显示当天/周/月/年的数据。对于历史数据、趋势分析或扩展时间范围，请使用其他统计适配器，例如 iobroker.history 或 iobroker.influxdb。",
     "Optional starting value for the current month if the adapter was enabled later": "如果稍后启用适配器，则当前月份的可选起始值",
     "Optional starting value for the current week if the adapter was enabled later": "如果稍后启用适配器，则本周的可选起始值",
     "Optional starting value for today if the adapter was enabled after production already started": "如果在生产开始后启用适配器，则今天的可选起始值",

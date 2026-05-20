@@ -15,7 +15,7 @@
     "Inverter Serial Number": "Numer seryjny falownika",
     "Monthly start value (kWh)": "Miesięczna wartość początkowa (kWh)",
     "Monthly statistics": "Statystyki miesięczne",
-    "Note on Extended Statistics: These statistics show data for the current day/week/month/year only. For historical data, trend analysis, or extended time ranges, please use additional statistics adapters like iobroker.history or iobroker.influxdb.": "Uwaga dotycząca rozszerzonych statystyk: statystyki te przedstawiają dane wyłącznie z bieżącego dnia/tygodnia/miesiąca/roku. W przypadku danych historycznych, analizy trendów lub rozszerzonych zakresów czasowych należy skorzystać z dodatkowych adapterów statystycznych, takich jak iobroker.history lub iobroker.influxdb.",
+    "Note on Extended Statistics": "Uwaga dotycząca rozszerzonych statystyk: statystyki te przedstawiają dane wyłącznie z bieżącego dnia/tygodnia/miesiąca/roku. W przypadku danych historycznych, analizy trendów lub rozszerzonych zakresów czasowych należy skorzystać z dodatkowych adapterów statystycznych, takich jak iobroker.history lub iobroker.influxdb.",
     "Optional starting value for the current month if the adapter was enabled later": "Opcjonalna wartość początkowa dla bieżącego miesiąca, jeśli adapter został włączony później",
     "Optional starting value for the current week if the adapter was enabled later": "Opcjonalna wartość początkowa na bieżący tydzień, jeśli adapter został włączony później",
     "Optional starting value for today if the adapter was enabled after production already started": "Opcjonalna wartość początkowa na dzisiaj, jeśli adapter został włączony po rozpoczęciu produkcji",

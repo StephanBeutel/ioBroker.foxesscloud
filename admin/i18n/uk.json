@@ -15,7 +15,7 @@
     "Inverter Serial Number": "Серійний номер інвертора",
     "Monthly start value (kWh)": "Місячне початкове значення (кВт·год)",
     "Monthly statistics": "Щомісячна статистика",
-    "Note on Extended Statistics: These statistics show data for the current day/week/month/year only. For historical data, trend analysis, or extended time ranges, please use additional statistics adapters like iobroker.history or iobroker.influxdb.": "Примітка щодо розширеної статистики: ця статистика показує дані лише за поточний день/тиждень/місяць/рік. Для історичних даних, аналізу тенденцій або розширених часових діапазонів використовуйте додаткові адаптери статистики, як-от iobroker.history або iobroker.influxdb.",
+    "Note on Extended Statistics": "Примітка щодо розширеної статистики: ця статистика показує дані лише за поточний день/тиждень/місяць/рік. Для історичних даних, аналізу тенденцій або розширених часових діапазонів використовуйте додаткові адаптери статистики, як-от iobroker.history або iobroker.influxdb.",
     "Optional starting value for the current month if the adapter was enabled later": "Додаткове початкове значення для поточного місяця, якщо адаптер було ввімкнено пізніше",
     "Optional starting value for the current week if the adapter was enabled later": "Додаткове початкове значення для поточного тижня, якщо адаптер було ввімкнено пізніше",
     "Optional starting value for today if the adapter was enabled after production already started": "Необов’язкове початкове значення на сьогодні, якщо адаптер було ввімкнено після початку виробництва",

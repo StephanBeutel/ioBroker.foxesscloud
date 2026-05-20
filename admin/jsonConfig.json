@@ -123,10 +123,6 @@
                     "xl": 6,
                     "help": "Optional: Enter price per kWh for cost calculations. Leave empty or 0 to disable price display"
                 },
-                "_infoBox": {
-                    "type": "staticText",
-                    "text": "<b>Note on Extended Statistics:</b> These statistics show data for the current day/week/month/year only. For historical data, trend analysis, or extended time ranges, please use additional statistics adapters like iobroker.history or iobroker.influxdb."
-                },
                 "_startValues": {
                     "type": "header",
                     "text": "Start Values For Current Periods",
@@ -167,6 +163,19 @@
                     "lg": 4,
                     "xl": 4,
                     "help": "Optional starting value for the current month if the adapter was enabled later"
+                },
+                "_infoBox": {
+                    "type": "staticText",
+                    "text": "Note on Extended Statistics",
+                    "style": {
+                                "fontSize": "0.875rem",
+                                "whiteSpace": "pre-wrap",
+                                "marginTop": "20px",
+                                "padding": "10px 14px",
+                                "border": "1px solid #546e7a",
+                                "borderRadius": "6px",
+                                "backgroundColor": "rgba(84, 110, 122, 0.12)"
+                            }
                 }
             }
         }
