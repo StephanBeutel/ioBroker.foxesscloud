@@ -735,7 +735,9 @@ class Foxesscloud extends utils.Adapter {
 			if (this.lastUpdateDate !== null && this.currentDayTotal > 0) {
 				this.rotateDailyData(this.lastUpdateDate, this.currentDayTotal);
 			}
-			this.currentDayTotal = this.getConfiguredStartValue(this.config.pvPowerJSONStartDaily);
+			// Use configured start value only on first run (null), not on every day rollover
+			this.currentDayTotal =
+				this.lastUpdateDate === null ? this.getConfiguredStartValue(this.config.pvPowerJSONStartDaily) : 0;
 			this.lastUpdateDate = dayKey;
 		}
 
@@ -743,7 +745,9 @@ class Foxesscloud extends utils.Adapter {
 			if (this.lastUpdateWeek !== null && this.currentWeekTotal > 0) {
 				this.rotateWeeklyData(this.lastUpdateWeek, this.currentWeekTotal);
 			}
-			this.currentWeekTotal = this.getConfiguredStartValue(this.config.pvPowerJSONStartWeekly);
+			// Use configured start value only on first run (null), not on every week rollover
+			this.currentWeekTotal =
+				this.lastUpdateWeek === null ? this.getConfiguredStartValue(this.config.pvPowerJSONStartWeekly) : 0;
 			this.lastUpdateWeek = weekKey;
 		}
 
@@ -751,7 +755,9 @@ class Foxesscloud extends utils.Adapter {
 			if (this.lastUpdateMonth !== null && this.currentMonthTotal > 0) {
 				this.rotateMonthlyData(this.lastUpdateMonth, this.currentMonthTotal);
 			}
-			this.currentMonthTotal = this.getConfiguredStartValue(this.config.pvPowerJSONStartMonthly);
+			// Use configured start value only on first run (null), not on every month rollover
+			this.currentMonthTotal =
+				this.lastUpdateMonth === null ? this.getConfiguredStartValue(this.config.pvPowerJSONStartMonthly) : 0;
 			this.lastUpdateMonth = monthKey;
 		}
 
