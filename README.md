@@ -16,7 +16,7 @@
 
 Retrieves data from FoxESS Cloud API for solar inverters (e.g., used in Enpal systems) and exposes ioBroker states for home automation:
 
-- Monitor solar power production in real-time
+- Monitor solar power production
 - Track battery state of charge (SoC)
 - Analyze grid consumption and feed-in power
 - Automate based on power generation
