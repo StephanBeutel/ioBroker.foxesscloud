@@ -1,4 +1,7 @@
 # Older changes
+## 0.2.2 (2026-05-14)
+- (skvarel) Fixed some lint errors/warnings
+
 ## 0.2.1 (2026-04-13)
 - (skvarel) Removed: React and mui
 

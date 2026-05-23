@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "foxesscloud",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "news": {
+      "0.5.0": {
+        "en": "Added PV Power JSON statistics (daily, weekly, monthly) for VIS widget integration with optional cost calculation per kWh",
+        "de": "Hinzugefügt PV Power JSON Statistiken (täglich, wöchentlich, monatlich) für VIS Widget Integration mit optionaler Kostenberechnung pro kWh",
+        "ru": "Добавлена статистика PV Power JSON (ежедневная, еженедельная, ежемесячная) для интеграции виджета VIS с дополнительным расчетом стоимости за кВтч",
+        "pt": "Adicionado PV Power JSON estatísticas (diária, semanal, mensal) para integração widget VIS com cálculo de custo opcional por kWh",
+        "nl": "Toegevoegd PV Power JSON statistieken (dagelijks, wekelijks, maandelijks) voor VIS widget integratie met optionele kostenberekening per kWh",
+        "fr": "Ajout de statistiques PV Power JSON (quotidienne, hebdomadaire, mensuelle) pour l'intégration des widgets VIS avec calcul du coût optionnel par kWh",
+        "it": "Statistiche di PV Power JSON (daily, settimanale, mensile) per l'integrazione dei widget VIS con calcolo opzionale dei costi per kWh",
+        "es": "Añadido PV Power JSON estadística (diario, semanal, mensual) para la integración del widget VIS con cálculo de coste opcional por kWh",
+        "pl": "Dodano statystyki JSON energii fotowoltaicznej (codziennie, co tydzień, co miesiąc) dla integracji widżetów VIS z opcjonalnymi kalkulacjami kosztów na kWh",
+        "uk": "Додана статистика PV Power JSON (щотижневий, щомісячний) для інтеграції віджетів VIS з додатковою вартістю розрахунку на кВт•год",
+        "zh-cn": "增加电源JSON统计数据(每日、每周、每月),用于VIS部件集成,每千瓦小时可选成本计算"
+      },
       "0.4.0": {
         "en": "Added PV string 1 and string 2 power datapoints (pv1Power, pv2Power)\nAdded battery temperature datapoint (batTemperature)\nAdded inverter running state datapoint (runningState)",
         "de": "Hinzugefügt PV-String 1 und String 2 Leistungsdatenpunkte (pv1Power, pv2Power)\nHinzugefügt Batterietemperatur-Datenpunkt (batTemperature)\nHinzugefügt Inverter-Laufzustandsdatenpunkt (runningState)",
@@ -80,19 +93,6 @@
         "pl": "Usunięty: React and mui",
         "uk": "Вилучено: React та mui",
         "zh-cn": "删除: 反应和 mui"
-      },
-      "0.2.0": {
-        "en": "Updated: Minimum Node.js version requirement to >=22",
-        "de": "Aktualisiert: Mindestanforderungen an Node.js-Versionen an >=22",
-        "ru": "Минимальное требование Node.js к версии >=22",
-        "pt": "Atualizado: exigência mínima de versão Node.js para >=22",
-        "nl": "Voor de toepassing van deze onderverdeling wordt verstaan onder:",
-        "fr": "Mise à jour: Exigences minimales de la version Node.js à >=22",
-        "it": "Aggiornato: requisito minimo della versione Node.js a >=22",
-        "es": "Actualizado: Mínimo Node.js requisito de la versión para >=22",
-        "pl": "Aktualizacja: Minimalny wymóg wersji Node.js do > = 22",
-        "uk": "Оновлено: Мінімальна вимога версії Node.js до >=22",
-        "zh-cn": "更新:最小节点.js版本要求为QQ22"
       }
     },
     "titleLang": {
