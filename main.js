@@ -23,6 +23,7 @@ class Foxesscloud extends utils.Adapter {
 		this.updateInterval = null;
 		this.systemLanguage = "en";
 		this.lastTempWarningLevel = 0;
+		this.createdPvStates = new Set();
 
 		// PV Power JSON tracking
 		this.pvPowerJsonData = {
@@ -368,56 +369,6 @@ class Foxesscloud extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setObjectNotExistsAsync("pv1Power", {
-			type: "state",
-			common: {
-				name: {
-					en: "PV String 1 Power",
-					de: "PV-String 1 Leistung",
-					ru: "Мощность PV-строки 1",
-					pt: "Potência do string PV 1",
-					nl: "PV-string 1 vermogen",
-					fr: "Puissance chaîne PV 1",
-					it: "Potenza stringa PV 1",
-					es: "Potencia cadena FV 1",
-					pl: "Moc łańcucha PV 1",
-					uk: "Потужність рядка PV 1",
-					"zh-cn": "PV 串列 1 功率",
-				},
-				type: "number",
-				role: "value.power",
-				unit: "kW",
-				read: true,
-				write: false,
-			},
-			native: {},
-		});
-
-		await this.setObjectNotExistsAsync("pv2Power", {
-			type: "state",
-			common: {
-				name: {
-					en: "PV String 2 Power",
-					de: "PV-String 2 Leistung",
-					ru: "Мощность PV-строки 2",
-					pt: "Potência do string PV 2",
-					nl: "PV-string 2 vermogen",
-					fr: "Puissance chaîne PV 2",
-					it: "Potenza stringa PV 2",
-					es: "Potencia cadena FV 2",
-					pl: "Moc łańcucha PV 2",
-					uk: "Потужність рядка PV 2",
-					"zh-cn": "PV 串列 2 功率",
-				},
-				type: "number",
-				role: "value.power",
-				unit: "kW",
-				read: true,
-				write: false,
-			},
-			native: {},
-		});
-
 		// Create JSON states for PV power statistics
 		if (this.config.enablePvPowerJSON) {
 			if (this.config.pvPowerJSON_daily) {
@@ -500,8 +451,7 @@ class Foxesscloud extends utils.Adapter {
 				sn: this.config.sn,
 				variables: [
 					"pvPower",
-					"pv1Power",
-					"pv2Power",
+					...Array.from({ length: 24 }, (_, i) => `pv${i + 1}Power`),
 					"generationPower",
 					"SoC",
 					"loadsPower",
@@ -673,16 +623,39 @@ class Foxesscloud extends utils.Adapter {
 							}
 						}
 
-						const pv1PowerData = getDataPointByVariable("pv1Power");
-						if (pv1PowerData && pv1PowerData.value !== undefined) {
-							const pv1 = parseFloat(pv1PowerData.value.toFixed(3));
-							this.setState("pv1Power", pv1, true);
-						}
-
-						const pv2PowerData = getDataPointByVariable("pv2Power");
-						if (pv2PowerData && pv2PowerData.value !== undefined) {
-							const pv2 = parseFloat(pv2PowerData.value.toFixed(3));
-							this.setState("pv2Power", pv2, true);
+						for (let i = 1; i <= 24; i++) {
+							const pvStringData = getDataPointByVariable(`pv${i}Power`);
+							if (pvStringData && pvStringData.value !== undefined) {
+								const stateId = `pv${i}Power`;
+								if (!this.createdPvStates.has(stateId)) {
+									await this.setObjectNotExistsAsync(stateId, {
+										type: "state",
+										common: {
+											name: {
+												en: `PV String ${i} Power`,
+												de: `PV-String ${i} Leistung`,
+												ru: `Мощность PV-строки ${i}`,
+												pt: `Potência do string PV ${i}`,
+												nl: `PV-string ${i} vermogen`,
+												fr: `Puissance chaîne PV ${i}`,
+												it: `Potenza stringa PV ${i}`,
+												es: `Potencia cadena FV ${i}`,
+												pl: `Moc łańcucha PV ${i}`,
+												uk: `Потужність рядка PV ${i}`,
+												"zh-cn": `PV 串列 ${i} 功率`,
+											},
+											type: "number",
+											role: "value.power",
+											unit: "kW",
+											read: true,
+											write: false,
+										},
+										native: {},
+									});
+									this.createdPvStates.add(stateId);
+								}
+								this.setState(stateId, parseFloat(pvStringData.value.toFixed(3)), true);
+							}
 						}
 
 						const batTemperatureData =
