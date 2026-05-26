@@ -766,6 +766,9 @@ class Foxesscloud extends utils.Adapter {
 	/**
 	 * Fetch generation report (today / this month / this year) from the FoxESS report API.
 	 * Called once per calendar day to avoid burning the 1440 calls/day quota.
+	 *
+	 * The API returns per-period arrays (hourly for day, daily for month, monthly for year).
+	 * We sum the values to get the period total.
 	 */
 	async getGenerationReport() {
 		const now = new Date();
@@ -796,47 +799,40 @@ class Foxesscloud extends utils.Adapter {
 				sn: this.config.sn,
 				year,
 				month,
-				day: 0,
+				day: 1,
 				dimension: "month",
 				variables,
 			}),
 			this.makeApiRequest("/op/v0/device/report/query", "POST", {
 				sn: this.config.sn,
 				year,
-				month: 0,
-				day: 0,
+				month: 1,
+				day: 1,
 				dimension: "year",
 				variables,
 			}),
 		]);
-
-		this.log.debug(`Generation report (day): ${JSON.stringify(dayJson)}`);
-		this.log.debug(`Generation report (month): ${JSON.stringify(monthJson)}`);
-		this.log.debug(`Generation report (year): ${JSON.stringify(yearJson)}`);
 
 		for (const [period, response] of [
 			["day", dayJson],
 			["month", monthJson],
 			["year", yearJson],
 		]) {
-			if (!response || response.errno !== 0 || !response.result) {
+			if (!response || response.errno !== 0 || !Array.isArray(response.result)) {
 				this.log.warn(
 					`Generation report (${period}) returned unexpected response: ${JSON.stringify(response)}`,
 				);
 				continue;
 			}
 
-			// result may be an object or an array — handle both
-			const result = Array.isArray(response.result) ? response.result[0] : response.result;
-			if (!result) {
-				continue;
-			}
-
-			for (const [apiVar, stateId] of Object.entries(variableToStateId)) {
-				const value = result[apiVar];
-				if (value !== undefined && value !== null) {
-					await this.setState(`report.${period}.${stateId}`, parseFloat(Number(value).toFixed(3)), true);
+			// Each result entry is { variable, unit, values: number[] } — sum the values array for the period total
+			for (const entry of response.result) {
+				const stateId = variableToStateId[entry.variable];
+				if (!stateId || !Array.isArray(entry.values)) {
+					continue;
 				}
+				const total = entry.values.reduce((sum, v) => sum + (v || 0), 0);
+				await this.setState(`report.${period}.${stateId}`, parseFloat(total.toFixed(3)), true);
 			}
 		}
 
