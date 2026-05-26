@@ -24,6 +24,7 @@ class Foxesscloud extends utils.Adapter {
 		this.systemLanguage = "en";
 		this.lastTempWarningLevel = 0;
 		this.createdPvStates = new Set();
+		this.lastReportDate = null;
 
 		// PV Power JSON tracking
 		this.pvPowerJsonData = {
@@ -37,6 +38,60 @@ class Foxesscloud extends utils.Adapter {
 		this.lastUpdateDate = null;
 		this.lastUpdateWeek = null;
 		this.lastUpdateMonth = null;
+	}
+
+	/**
+	 * Make an authenticated HTTPS request to the FoxESS Cloud API.
+	 *
+	 * @param {string} path - API path, e.g. "/op/v0/device/real/query"
+	 * @param {"GET"|"POST"} method - HTTP method
+	 * @param {object} bodyObject - Request body (will be JSON-stringified)
+	 * @returns {Promise<object>} Parsed JSON response
+	 */
+	makeApiRequest(path, method, bodyObject) {
+		return new Promise((resolve, reject) => {
+			const body = JSON.stringify(bodyObject);
+			const milliseconds = Date.now();
+			// WICHTIG: Die Signatur verwendet buchstäbliche Zeichen "\\r\\n", NICHT echte Zeilenumbrüche!
+			const signatureString = `${path}\\r\\n${this.config.token}\\r\\n${milliseconds}`;
+			const signature = crypto.createHash("md5").update(signatureString).digest("hex");
+
+			const options = {
+				hostname: "www.foxesscloud.com",
+				port: 443,
+				path: path,
+				method: method,
+				headers: {
+					"Content-Type": "application/json",
+					token: this.config.token,
+					timestamp: milliseconds,
+					signature: signature,
+					lang: "en",
+				},
+			};
+
+			const req = https.request(options, res => {
+				res.setEncoding("utf8");
+				let data = "";
+				res.on("data", chunk => (data += chunk));
+				res.on("end", () => {
+					if (!data) {
+						reject(new Error("Empty response from API"));
+						return;
+					}
+					try {
+						resolve(JSON.parse(data));
+					} catch (e) {
+						reject(new Error(`Failed to parse API response: ${e instanceof Error ? e.message : String(e)}`));
+					}
+				});
+				res.on("error", reject);
+			});
+
+			req.on("error", reject);
+			req.write(body);
+			req.end();
+		});
 	}
 
 	/**
@@ -369,6 +424,55 @@ class Foxesscloud extends utils.Adapter {
 			native: {},
 		});
 
+		// Create generation report states (day / month / year)
+		const reportPeriods = ["day", "month", "year"];
+		const reportPeriodNames = {
+			day: { en: "Today", de: "Heute" },
+			month: { en: "This Month", de: "Dieser Monat" },
+			year: { en: "This Year", de: "Dieses Jahr" },
+		};
+		const reportVariables = [
+			{
+				id: "generation",
+				name: { en: "PV Generation", de: "PV-Erzeugung" },
+			},
+			{
+				id: "feedin",
+				name: { en: "Feed-in Energy", de: "Eingespeiste Energie" },
+			},
+			{
+				id: "gridConsumption",
+				name: { en: "Grid Consumption", de: "Netzbezug" },
+			},
+			{
+				id: "chargeEnergy",
+				name: { en: "Battery Charge Energy", de: "Batterie-Ladeenergie" },
+			},
+			{
+				id: "dischargeEnergy",
+				name: { en: "Battery Discharge Energy", de: "Batterie-Entladeenergie" },
+			},
+		];
+		for (const period of reportPeriods) {
+			for (const variable of reportVariables) {
+				await this.setObjectNotExistsAsync(`report.${period}.${variable.id}`, {
+					type: "state",
+					common: {
+						name: {
+							en: `${reportPeriodNames[period].en} ${variable.name.en}`,
+							de: `${reportPeriodNames[period].de} ${variable.name.de}`,
+						},
+						type: "number",
+						role: "value.energy",
+						unit: "kWh",
+						read: true,
+						write: false,
+					},
+					native: {},
+				});
+			}
+		}
+
 		// Create JSON states for PV power statistics
 		if (this.config.enablePvPowerJSON) {
 			if (this.config.pvPowerJSON_daily) {
@@ -447,7 +551,7 @@ class Foxesscloud extends utils.Adapter {
 	 */
 	async getData() {
 		try {
-			const data = JSON.stringify({
+			const json = await this.makeApiRequest("/op/v0/device/real/query", "POST", {
 				sn: this.config.sn,
 				variables: [
 					"pvPower",
@@ -466,244 +570,277 @@ class Foxesscloud extends utils.Adapter {
 				],
 			});
 
-			const path = "/op/v0/device/real/query";
-			const milliseconds = new Date().getTime();
-
-			// WICHTIG: Die Signatur verwendet buchstäbliche Zeichen "\\r\\n", NICHT echte Zeilenumbrüche!
-			const signatureString = `${path}\\r\\n${this.config.token}\\r\\n${milliseconds}`;
-			const signature = crypto.createHash("md5").update(signatureString).digest("hex");
-
-			const options = {
-				headers: {
-					"Content-Type": "application/json",
-					token: this.config.token,
-					timestamp: milliseconds,
-					signature: signature,
-					lang: "en",
-				},
-				hostname: "www.foxesscloud.com",
-				method: "POST",
-				path: path,
-				port: 443,
-			};
-
-			const request = https.request(options, response => {
-				response.setEncoding("utf8");
-
-				let responseData = "";
-
-				response.on("data", chunk => {
-					responseData += chunk;
-				});
-
-				response.on("end", () => {
-					try {
-						if (!responseData) {
-							this.log.error("No data received from API");
-							this.setState("info.connection", false, true);
-							return;
-						}
-
-						const json = JSON.parse(responseData);
-
-						// Check if API response is valid
-						if (!json.result || !json.result[0] || !json.result[0].datas) {
-							this.log.error("Invalid API response - missing result/datas structure");
-							this.log.error(`API response: ${JSON.stringify(json, null, 2)}`);
-							if (json.errno !== undefined) {
-								this.log.error(`API error code: ${json.errno}`);
-							}
-							if (json.msg !== undefined) {
-								this.log.error(`API error message: ${json.msg}`);
-							}
-							this.setState("info.connection", false, true);
-							return;
-						}
-
-						const datas = json.result[0].datas;
-
-						// Update connection state
-						this.setState("info.connection", true, true);
-
-						// Update all states
-						// @ts-expect-error FoxESS response data is dynamically typed.
-						const getDataPointByVariable = variable =>
-							// @ts-expect-error FoxESS response data entries are dynamically typed.
-							datas.find(entry => entry && entry.variable === variable);
-
-						const pvPowerData = getDataPointByVariable("pvPower");
-						if (pvPowerData && pvPowerData.value !== undefined) {
-							const pvPower = parseFloat(pvPowerData.value.toFixed(3));
-							this.setState("pvPower", pvPower, true);
-
-							// Update PV Power JSON statistics (fire and forget)
-							this.updatePvPowerJson(pvPower).catch(err => {
-								this.log.debug(
-									`Error updating PV Power JSON: ${err instanceof Error ? err.message : String(err)}`,
-								);
-							});
-						}
-
-						const generationPowerData = getDataPointByVariable("generationPower");
-						if (generationPowerData && generationPowerData.value !== undefined) {
-							const genPower = parseFloat(generationPowerData.value.toFixed(3));
-							this.setState("generationPower", genPower, true);
-						}
-
-						const socData = getDataPointByVariable("SoC") || getDataPointByVariable("SoC_1");
-						if (socData && socData.value !== undefined) {
-							const soc = socData.value;
-							this.setState("soc", soc, true);
-						}
-
-						const loadsPowerData = getDataPointByVariable("loadsPower");
-						if (loadsPowerData && loadsPowerData.value !== undefined) {
-							const load = parseFloat(loadsPowerData.value.toFixed(3));
-							this.setState("load", load, true);
-						}
-
-						const gridConsumptionData = getDataPointByVariable("gridConsumptionPower");
-						if (gridConsumptionData && gridConsumptionData.value !== undefined) {
-							const gridCons = parseFloat(gridConsumptionData.value.toFixed(3));
-							this.setState("gridConsumption", gridCons, true);
-						}
-
-						const feedinPowerData = getDataPointByVariable("feedinPower");
-						if (feedinPowerData && feedinPowerData.value !== undefined) {
-							const feedin = parseFloat(feedinPowerData.value.toFixed(3));
-							this.setState("feedinPower", feedin, true);
-						}
-
-						const batChargePowerData = getDataPointByVariable("batChargePower");
-						if (batChargePowerData && batChargePowerData.value !== undefined) {
-							const charge = parseFloat(batChargePowerData.value.toFixed(3));
-							this.setState("batCharge", charge, true);
-						}
-
-						const batDischargePowerData = getDataPointByVariable("batDischargePower");
-						if (batDischargePowerData && batDischargePowerData.value !== undefined) {
-							const discharge = parseFloat(batDischargePowerData.value.toFixed(3));
-							this.setState("batDischarge", discharge, true);
-						}
-
-						const invTemperatureData = getDataPointByVariable("invTemperation");
-						if (invTemperatureData && invTemperatureData.value !== undefined) {
-							const invTemperature = parseFloat(invTemperatureData.value.toFixed(1));
-							this.setState("invTemperature", invTemperature, true);
-
-							if (invTemperature >= 80) {
-								if (this.lastTempWarningLevel !== 80) {
-									if (this.systemLanguage === "de") {
-										this.log.warn(
-											`Achtung, Wechselrichtertemperatur zu hoch: ${invTemperature.toFixed(1)} °C.`,
-										);
-									} else {
-										this.log.warn(
-											`Warning, inverter temperature is too high: ${invTemperature.toFixed(1)} °C.`,
-										);
-									}
-								}
-								this.lastTempWarningLevel = 80;
-							} else if (invTemperature >= 65) {
-								if (this.lastTempWarningLevel === 0) {
-									if (this.systemLanguage === "de") {
-										this.log.warn(
-											`Kritisch, bitte die Wechselrichtertemperatur im Blick behalten: ${invTemperature.toFixed(1)} °C.`,
-										);
-									} else {
-										this.log.warn(
-											`Critical, please keep an eye on inverter temperature: ${invTemperature.toFixed(1)} °C.`,
-										);
-									}
-								}
-								this.lastTempWarningLevel = 65;
-							} else if (invTemperature < 63) {
-								// Reset warning level below threshold minus hysteresis to avoid log spam.
-								this.lastTempWarningLevel = 0;
-							}
-						}
-
-						for (let i = 1; i <= 24; i++) {
-							const pvStringData = getDataPointByVariable(`pv${i}Power`);
-							if (pvStringData && pvStringData.value !== undefined) {
-								const stateId = `pv${i}Power`;
-								if (!this.createdPvStates.has(stateId)) {
-									await this.setObjectNotExistsAsync(stateId, {
-										type: "state",
-										common: {
-											name: {
-												en: `PV String ${i} Power`,
-												de: `PV-String ${i} Leistung`,
-												ru: `Мощность PV-строки ${i}`,
-												pt: `Potência do string PV ${i}`,
-												nl: `PV-string ${i} vermogen`,
-												fr: `Puissance chaîne PV ${i}`,
-												it: `Potenza stringa PV ${i}`,
-												es: `Potencia cadena FV ${i}`,
-												pl: `Moc łańcucha PV ${i}`,
-												uk: `Потужність рядка PV ${i}`,
-												"zh-cn": `PV 串列 ${i} 功率`,
-											},
-											type: "number",
-											role: "value.power",
-											unit: "kW",
-											read: true,
-											write: false,
-										},
-										native: {},
-									});
-									this.createdPvStates.add(stateId);
-								}
-								this.setState(stateId, parseFloat(pvStringData.value.toFixed(3)), true);
-							}
-						}
-
-						const batTemperatureData =
-							getDataPointByVariable("batTemperature_1") || getDataPointByVariable("batTemperature");
-						if (
-							batTemperatureData &&
-							batTemperatureData.value !== undefined &&
-							batTemperatureData.value !== null
-						) {
-							const batTemp = parseFloat(batTemperatureData.value.toFixed(1));
-							this.setState("batTemperature", batTemp, true);
-						}
-
-						const runningStateData = getDataPointByVariable("runningState");
-						if (runningStateData && runningStateData.value !== undefined) {
-							this.setState("runningState", String(runningStateData.value), true);
-						}
-
-						this.log.debug("Data successfully updated");
-					} catch (parseError) {
-						this.log.error(
-							`Error processing API response: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
-						);
-						this.log.error(`Raw data: ${responseData}`);
-						this.setState("info.connection", false, true);
+			try {
+				// Check if API response is valid
+				if (!json.result || !json.result[0] || !json.result[0].datas) {
+					this.log.error("Invalid API response - missing result/datas structure");
+					this.log.error(`API response: ${JSON.stringify(json, null, 2)}`);
+					if (json.errno !== undefined) {
+						this.log.error(`API error code: ${json.errno}`);
 					}
-				});
-
-				response.on("error", err => {
-					this.log.error(`Response error: ${err.message}`);
+					if (json.msg !== undefined) {
+						this.log.error(`API error message: ${json.msg}`);
+					}
 					this.setState("info.connection", false, true);
-				});
-			});
+					return;
+				}
 
-			request.on("error", err => {
-				this.log.error(`Request error: ${err.message}`);
+				const datas = json.result[0].datas;
+
+				// Update connection state
+				this.setState("info.connection", true, true);
+
+				// Update all states
+				// @ts-expect-error FoxESS response data is dynamically typed.
+				const getDataPointByVariable = variable =>
+					// @ts-expect-error FoxESS response data entries are dynamically typed.
+					datas.find(entry => entry && entry.variable === variable);
+
+				const pvPowerData = getDataPointByVariable("pvPower");
+				if (pvPowerData && pvPowerData.value !== undefined) {
+					const pvPower = parseFloat(pvPowerData.value.toFixed(3));
+					this.setState("pvPower", pvPower, true);
+
+					// Update PV Power JSON statistics (fire and forget)
+					this.updatePvPowerJson(pvPower).catch(err => {
+						this.log.debug(
+							`Error updating PV Power JSON: ${err instanceof Error ? err.message : String(err)}`,
+						);
+					});
+				}
+
+				const generationPowerData = getDataPointByVariable("generationPower");
+				if (generationPowerData && generationPowerData.value !== undefined) {
+					const genPower = parseFloat(generationPowerData.value.toFixed(3));
+					this.setState("generationPower", genPower, true);
+				}
+
+				const socData = getDataPointByVariable("SoC") || getDataPointByVariable("SoC_1");
+				if (socData && socData.value !== undefined) {
+					const soc = socData.value;
+					this.setState("soc", soc, true);
+				}
+
+				const loadsPowerData = getDataPointByVariable("loadsPower");
+				if (loadsPowerData && loadsPowerData.value !== undefined) {
+					const load = parseFloat(loadsPowerData.value.toFixed(3));
+					this.setState("load", load, true);
+				}
+
+				const gridConsumptionData = getDataPointByVariable("gridConsumptionPower");
+				if (gridConsumptionData && gridConsumptionData.value !== undefined) {
+					const gridCons = parseFloat(gridConsumptionData.value.toFixed(3));
+					this.setState("gridConsumption", gridCons, true);
+				}
+
+				const feedinPowerData = getDataPointByVariable("feedinPower");
+				if (feedinPowerData && feedinPowerData.value !== undefined) {
+					const feedin = parseFloat(feedinPowerData.value.toFixed(3));
+					this.setState("feedinPower", feedin, true);
+				}
+
+				const batChargePowerData = getDataPointByVariable("batChargePower");
+				if (batChargePowerData && batChargePowerData.value !== undefined) {
+					const charge = parseFloat(batChargePowerData.value.toFixed(3));
+					this.setState("batCharge", charge, true);
+				}
+
+				const batDischargePowerData = getDataPointByVariable("batDischargePower");
+				if (batDischargePowerData && batDischargePowerData.value !== undefined) {
+					const discharge = parseFloat(batDischargePowerData.value.toFixed(3));
+					this.setState("batDischarge", discharge, true);
+				}
+
+				const invTemperatureData = getDataPointByVariable("invTemperation");
+				if (invTemperatureData && invTemperatureData.value !== undefined) {
+					const invTemperature = parseFloat(invTemperatureData.value.toFixed(1));
+					this.setState("invTemperature", invTemperature, true);
+
+					if (invTemperature >= 80) {
+						if (this.lastTempWarningLevel !== 80) {
+							if (this.systemLanguage === "de") {
+								this.log.warn(
+									`Achtung, Wechselrichtertemperatur zu hoch: ${invTemperature.toFixed(1)} °C.`,
+								);
+							} else {
+								this.log.warn(
+									`Warning, inverter temperature is too high: ${invTemperature.toFixed(1)} °C.`,
+								);
+							}
+						}
+						this.lastTempWarningLevel = 80;
+					} else if (invTemperature >= 65) {
+						if (this.lastTempWarningLevel === 0) {
+							if (this.systemLanguage === "de") {
+								this.log.warn(
+									`Kritisch, bitte die Wechselrichtertemperatur im Blick behalten: ${invTemperature.toFixed(1)} °C.`,
+								);
+							} else {
+								this.log.warn(
+									`Critical, please keep an eye on inverter temperature: ${invTemperature.toFixed(1)} °C.`,
+								);
+							}
+						}
+						this.lastTempWarningLevel = 65;
+					} else if (invTemperature < 63) {
+						// Reset warning level below threshold minus hysteresis to avoid log spam.
+						this.lastTempWarningLevel = 0;
+					}
+				}
+
+				for (let i = 1; i <= 24; i++) {
+					const pvStringData = getDataPointByVariable(`pv${i}Power`);
+					if (pvStringData && pvStringData.value !== undefined) {
+						const stateId = `pv${i}Power`;
+						if (!this.createdPvStates.has(stateId)) {
+							await this.setObjectNotExistsAsync(stateId, {
+								type: "state",
+								common: {
+									name: {
+										en: `PV String ${i} Power`,
+										de: `PV-String ${i} Leistung`,
+										ru: `Мощность PV-строки ${i}`,
+										pt: `Potência do string PV ${i}`,
+										nl: `PV-string ${i} vermogen`,
+										fr: `Puissance chaîne PV ${i}`,
+										it: `Potenza stringa PV ${i}`,
+										es: `Potencia cadena FV ${i}`,
+										pl: `Moc łańcucha PV ${i}`,
+										uk: `Потужність рядка PV ${i}`,
+										"zh-cn": `PV 串列 ${i} 功率`,
+									},
+									type: "number",
+									role: "value.power",
+									unit: "kW",
+									read: true,
+									write: false,
+								},
+								native: {},
+							});
+							this.createdPvStates.add(stateId);
+						}
+						this.setState(stateId, parseFloat(pvStringData.value.toFixed(3)), true);
+					}
+				}
+
+				const batTemperatureData =
+					getDataPointByVariable("batTemperature_1") || getDataPointByVariable("batTemperature");
+				if (
+					batTemperatureData &&
+					batTemperatureData.value !== undefined &&
+					batTemperatureData.value !== null
+				) {
+					const batTemp = parseFloat(batTemperatureData.value.toFixed(1));
+					this.setState("batTemperature", batTemp, true);
+				}
+
+				const runningStateData = getDataPointByVariable("runningState");
+				if (runningStateData && runningStateData.value !== undefined) {
+					this.setState("runningState", String(runningStateData.value), true);
+				}
+
+				this.log.debug("Data successfully updated");
+
+				// Trigger generation report on first call and at midnight rollover
+				const todayKey = this.getDateKey(new Date());
+				if (this.lastReportDate !== todayKey) {
+					this.lastReportDate = todayKey;
+					this.getGenerationReport().catch(err => {
+						this.log.warn(
+							`Error fetching generation report: ${err instanceof Error ? err.message : String(err)}`,
+						);
+					});
+				}
+			} catch (parseError) {
+				this.log.error(
+					`Error processing API response: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+				);
 				this.setState("info.connection", false, true);
-			});
-
-			request.write(data);
-			request.end();
-		} catch (e) {
-			this.log.error(`Exception error: ${e instanceof Error ? e.message : String(e)}`);
-			if (e instanceof Error && e.stack) {
-				this.log.error(e.stack);
 			}
+		} catch (e) {
+			this.log.error(`Request error: ${e instanceof Error ? e.message : String(e)}`);
 			this.setState("info.connection", false, true);
 		}
+	}
+
+	/**
+	 * Fetch generation report (today / this month / this year) from the FoxESS report API.
+	 * Called once per calendar day to avoid burning the 1440 calls/day quota.
+	 */
+	async getGenerationReport() {
+		const now = new Date();
+		const year = now.getFullYear();
+		const month = now.getMonth() + 1;
+		const day = now.getDate();
+		const variables = ["generation", "feedin", "gridConsumption", "chargeEnergyToTal", "dischargeEnergyToTal"];
+
+		// Map API variable names to state IDs
+		const variableToStateId = {
+			generation: "generation",
+			feedin: "feedin",
+			gridConsumption: "gridConsumption",
+			chargeEnergyToTal: "chargeEnergy",
+			dischargeEnergyToTal: "dischargeEnergy",
+		};
+
+		const [dayJson, monthJson, yearJson] = await Promise.all([
+			this.makeApiRequest("/op/v0/device/report/query", "POST", {
+				sn: this.config.sn,
+				year,
+				month,
+				day,
+				dimension: "day",
+				variables,
+			}),
+			this.makeApiRequest("/op/v0/device/report/query", "POST", {
+				sn: this.config.sn,
+				year,
+				month,
+				day: 0,
+				dimension: "month",
+				variables,
+			}),
+			this.makeApiRequest("/op/v0/device/report/query", "POST", {
+				sn: this.config.sn,
+				year,
+				month: 0,
+				day: 0,
+				dimension: "year",
+				variables,
+			}),
+		]);
+
+		this.log.debug(`Generation report (day): ${JSON.stringify(dayJson)}`);
+		this.log.debug(`Generation report (month): ${JSON.stringify(monthJson)}`);
+		this.log.debug(`Generation report (year): ${JSON.stringify(yearJson)}`);
+
+		for (const [period, response] of [
+			["day", dayJson],
+			["month", monthJson],
+			["year", yearJson],
+		]) {
+			if (!response || response.errno !== 0 || !response.result) {
+				this.log.warn(
+					`Generation report (${period}) returned unexpected response: ${JSON.stringify(response)}`,
+				);
+				continue;
+			}
+
+			// result may be an object or an array — handle both
+			const result = Array.isArray(response.result) ? response.result[0] : response.result;
+			if (!result) {
+				continue;
+			}
+
+			for (const [apiVar, stateId] of Object.entries(variableToStateId)) {
+				const value = result[apiVar];
+				if (value !== undefined && value !== null) {
+					await this.setState(`report.${period}.${stateId}`, parseFloat(Number(value).toFixed(3)), true);
+				}
+			}
+		}
+
+		this.log.debug("Generation report updated");
 	}
 
 	/**
