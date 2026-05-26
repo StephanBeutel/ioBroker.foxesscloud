@@ -373,21 +373,9 @@ class Foxesscloud extends utils.Adapter {
 			native: {},
 		});
 
-		await this.setObjectNotExistsAsync("invTemperature", {
-			type: "state",
-			common: { name: STATE_NAMES.invTemperature, type: "number", role: "value.temperature", unit: "°C", read: true, write: false },
-			native: {},
-		});
-
 		await this.setObjectNotExistsAsync("runningState", {
 			type: "state",
 			common: { name: STATE_NAMES.runningState, type: "string", role: "text", read: true, write: false },
-			native: {},
-		});
-
-		await this.setObjectNotExistsAsync("batTemperature", {
-			type: "state",
-			common: { name: STATE_NAMES.batTemperature, type: "number", role: "value.temperature", unit: "°C", read: true, write: false },
 			native: {},
 		});
 
@@ -559,8 +547,16 @@ class Foxesscloud extends utils.Adapter {
 				}
 
 				const invTemperatureData = getDataPointByVariable("invTemperation");
-				if (invTemperatureData && invTemperatureData.value !== undefined) {
+				if (invTemperatureData && invTemperatureData.value !== undefined && invTemperatureData.value !== null) {
 					const invTemperature = parseFloat(invTemperatureData.value.toFixed(1));
+					if (!this.createdPvStates.has("invTemperature")) {
+						await this.setObjectNotExistsAsync("invTemperature", {
+							type: "state",
+							common: { name: STATE_NAMES.invTemperature, type: "number", role: "value.temperature", unit: "°C", read: true, write: false },
+							native: {},
+						});
+						this.createdPvStates.add("invTemperature");
+					}
 					this.setState("invTemperature", invTemperature, true);
 
 					if (invTemperature >= 80) {
@@ -623,6 +619,14 @@ class Foxesscloud extends utils.Adapter {
 					batTemperatureData.value !== null
 				) {
 					const batTemp = parseFloat(batTemperatureData.value.toFixed(1));
+					if (!this.createdPvStates.has("batTemperature")) {
+						await this.setObjectNotExistsAsync("batTemperature", {
+							type: "state",
+							common: { name: STATE_NAMES.batTemperature, type: "number", role: "value.temperature", unit: "°C", read: true, write: false },
+							native: {},
+						});
+						this.createdPvStates.add("batTemperature");
+					}
 					this.setState("batTemperature", batTemp, true);
 				}
 
