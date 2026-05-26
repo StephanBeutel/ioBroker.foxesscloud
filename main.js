@@ -8,6 +8,181 @@ const utils = require("@iobroker/adapter-core");
 const https = require("node:https");
 const crypto = require("node:crypto");
 
+/** @type {Record<string, Record<string, string>>} */
+const STATE_NAMES = {
+	// --- Real-time power states ---
+	pvPower: {
+		en: "PV Power", de: "PV-Leistung", ru: "Мощность ФЭС", pt: "Potência FV",
+		nl: "PV-vermogen", fr: "Puissance PV", it: "Potenza FV", es: "Potencia FV",
+		pl: "Moc PV", uk: "Потужність ФЕС", "zh-cn": "光伏功率",
+	},
+	generationPower: {
+		en: "Generation Power (Output)", de: "Erzeugungsleistung (Ausgang)",
+		ru: "Вырабатываемая мощность (выходная)", pt: "Potência de geração (saída)",
+		nl: "Opwekkingsvermogen (output)", fr: "Puissance de production (sortie)",
+		it: "Potenza di generazione (uscita)", es: "Generación de potencia (salida)",
+		pl: "Moc generowana (wyjście)", uk: "Генерована потужність (вихідна)", "zh-cn": "发电功率（输出）",
+	},
+	soc: {
+		en: "Battery State of Charge", de: "Batterie-Ladezustand",
+		ru: "Уровень заряда батареи", pt: "Estado de carga da bateria",
+		nl: "Batterijlaadstatus", fr: "État de charge de la batterie",
+		it: "Stato di carica della batteria", es: "Estado de carga de la batería",
+		pl: "Stan naładowania baterii", uk: "Стан заряду акумулятора", "zh-cn": "电池电量",
+	},
+	load: {
+		en: "Load Power", de: "Verbrauchsleistung",
+		ru: "Потребляемая мощность", pt: "Potência de carga",
+		nl: "Verbruiksvermogen", fr: "Puissance de charge",
+		it: "Potenza di carico", es: "Potencia de carga",
+		pl: "Moc obciążenia", uk: "Потужність навантаження", "zh-cn": "负载功率",
+	},
+	gridConsumption: {
+		en: "Grid Consumption Power (Importing)", de: "Netzbezugsleistung (Import)",
+		ru: "Потребление электроэнергии из сети (импорт)", pt: "Consumo de energia da rede (importação)",
+		nl: "Stroomverbruik via het net (import)", fr: "Consommation électrique du réseau (importation)",
+		it: "Consumo di energia dalla rete (importazione)", es: "Consumo de energía de la red (importación)",
+		pl: "Zużycie energii w sieci (import)", uk: "Споживання електроенергії з мережі (імпорт)", "zh-cn": "电网消耗功率（进口）",
+	},
+	feedinPower: {
+		en: "Feed-in Power (Exporting)", de: "Einspeiseleistung (Export)",
+		ru: "Поставка электроэнергии в сеть (экспорт)", pt: "Energia de injeção na rede (exportação)",
+		nl: "Teruglevering van elektriciteit (export)", fr: "Puissance injectée (exportation)",
+		it: "Energia immessa (esportazione)", es: "Energía de alimentación (exportación)",
+		pl: "Moc dostarczona (eksport)", uk: "Потужність живлення (експорт)", "zh-cn": "并网电力（出口）",
+	},
+	batCharge: {
+		en: "Battery Charge Power", de: "Batterie-Ladeleistung",
+		ru: "Зарядка аккумулятора", pt: "Energia de carregamento da bateria",
+		nl: "Batterijlaadvermogen", fr: "Puissance de charge de la batterie",
+		it: "Potenza di carica della batteria", es: "Potencia de carga de la batería",
+		pl: "Moc ładowania akumulatora", uk: "Потужність заряду акумулятора", "zh-cn": "电池充电功率",
+	},
+	batDischarge: {
+		en: "Battery Discharge Power", de: "Batterie-Entladeleistung",
+		ru: "Мощность разряда батареи", pt: "Potência de descarga da bateria",
+		nl: "Batterijontladingsvermogen", fr: "Puissance de décharge de la batterie",
+		it: "Potenza di scarica della batteria", es: "Potencia de descarga de la batería",
+		pl: "Moc rozładowania akumulatora", uk: "Потужність розряду акумулятора", "zh-cn": "电池放电功率",
+	},
+	invTemperature: {
+		en: "Inverter Internal Temperature", de: "Interne Wechselrichtertemperatur",
+		ru: "Внутренняя температура инвертора", pt: "Temperatura interna do inversor",
+		nl: "Interne omvormertemperatuur", fr: "Temperature interne de l'onduleur",
+		it: "Temperatura interna dell'inverter", es: "Temperatura interna del inversor",
+		pl: "Wewnętrzna temperatura falownika", uk: "Внутрішня температура інвертора", "zh-cn": "逆变器内部温度",
+	},
+	runningState: {
+		en: "Running State", de: "Betriebszustand",
+		ru: "Рабочее состояние", pt: "Estado de funcionamento",
+		nl: "Bedrijfsstatus", fr: "État de fonctionnement",
+		it: "Stato operativo", es: "Estado de funcionamiento",
+		pl: "Stan pracy", uk: "Робочий стан", "zh-cn": "运行状态",
+	},
+	batTemperature: {
+		en: "Battery Temperature", de: "Batterietemperatur",
+		ru: "Температура батареи", pt: "Temperatura da bateria",
+		nl: "Batterijtemperatuur", fr: "Température de la batterie",
+		it: "Temperatura della batteria", es: "Temperatura de la batería",
+		pl: "Temperatura akumulatora", uk: "Температура акумулятора", "zh-cn": "电池温度",
+	},
+	// --- PV string power (template — {n} replaced at runtime) ---
+	pvStringPower: {
+		en: "PV String {n} Power", de: "PV-String {n} Leistung",
+		ru: "Мощность PV-строки {n}", pt: "Potência do string PV {n}",
+		nl: "PV-string {n} vermogen", fr: "Puissance chaîne PV {n}",
+		it: "Potenza stringa PV {n}", es: "Potencia cadena FV {n}",
+		pl: "Moc łańcucha PV {n}", uk: "Потужність рядка PV {n}", "zh-cn": "PV 串列 {n} 功率",
+	},
+	// --- PV Power JSON statistics ---
+	pvPowerJsonDaily: {
+		en: "Daily PV Power Statistics (JSON)", de: "Tägliche PV-Leistungsstatistiken (JSON)",
+		ru: "Ежедневная статистика мощности ФЭС (JSON)", pt: "Estatísticas diárias de potência FV (JSON)",
+		nl: "Dagelijkse PV-vermogensstatistieken (JSON)", fr: "Statistiques quotidiennes de puissance PV (JSON)",
+		it: "Statistiche giornaliere di potenza FV (JSON)", es: "Estadísticas diarias de potencia FV (JSON)",
+		pl: "Dzienne statystyki mocy PV (JSON)", uk: "Щоденна статистика потужності ФЕС (JSON)", "zh-cn": "每日光伏功率统计 (JSON)",
+	},
+	pvPowerJsonWeekly: {
+		en: "Weekly PV Power Statistics (JSON)", de: "Wöchentliche PV-Leistungsstatistiken (JSON)",
+		ru: "Еженедельная статистика мощности ФЭС (JSON)", pt: "Estatísticas semanais de potência FV (JSON)",
+		nl: "Wekelijkse PV-vermogensstatistieken (JSON)", fr: "Statistiques hebdomadaires de puissance PV (JSON)",
+		it: "Statistiche settimanali di potenza FV (JSON)", es: "Estadísticas semanales de potencia FV (JSON)",
+		pl: "Tygodniowe statystyki mocy PV (JSON)", uk: "Щотижнева статистика потужності ФЕС (JSON)", "zh-cn": "每周光伏功率统计 (JSON)",
+	},
+	pvPowerJsonMonthly: {
+		en: "Monthly PV Power Statistics (JSON)", de: "Monatliche PV-Leistungsstatistiken (JSON)",
+		ru: "Ежемесячная статистика мощности ФЭС (JSON)", pt: "Estatísticas mensais de potência FV (JSON)",
+		nl: "Maandelijkse PV-vermogensstatistieken (JSON)", fr: "Statistiques mensuelles de puissance PV (JSON)",
+		it: "Statistiche mensili di potenza FV (JSON)", es: "Estadísticas mensuales de potencia FV (JSON)",
+		pl: "Miesięczne statystyki mocy PV (JSON)", uk: "Щомісячна статистика потужності ФЕС (JSON)", "zh-cn": "每月光伏功率统计 (JSON)",
+	},
+	pvPowerJsonRunningState: {
+		en: "PV Power Statistics Running State (internal)", de: "PV-Statistiken Laufzustand (intern)",
+		ru: "Текущее состояние статистики ФЭС (внутр.)", pt: "Estado em execução das estatísticas FV (interno)",
+		nl: "Lopende status PV-statistieken (intern)", fr: "État en cours des statistiques PV (interne)",
+		it: "Stato corrente statistiche FV (interno)", es: "Estado en ejecución de estadísticas FV (interno)",
+		pl: "Bieżący stan statystyk PV (wewnętrzny)", uk: "Поточний стан статистики ФЕС (внутр.)", "zh-cn": "光伏统计运行状态（内部）",
+	},
+	// --- Report period prefixes ---
+	reportPeriodDay: {
+		en: "Today", de: "Heute",
+		ru: "Сегодня", pt: "Hoje",
+		nl: "Vandaag", fr: "Aujourd'hui",
+		it: "Oggi", es: "Hoy",
+		pl: "Dzisiaj", uk: "Сьогодні", "zh-cn": "今天",
+	},
+	reportPeriodMonth: {
+		en: "This Month", de: "Dieser Monat",
+		ru: "Этот месяц", pt: "Este mês",
+		nl: "Deze maand", fr: "Ce mois-ci",
+		it: "Questo mese", es: "Este mes",
+		pl: "Ten miesiąc", uk: "Цей місяць", "zh-cn": "本月",
+	},
+	reportPeriodYear: {
+		en: "This Year", de: "Dieses Jahr",
+		ru: "Этот год", pt: "Este ano",
+		nl: "Dit jaar", fr: "Cette année",
+		it: "Quest'anno", es: "Este año",
+		pl: "Ten rok", uk: "Цей рік", "zh-cn": "今年",
+	},
+	// --- Report variable names ---
+	reportGeneration: {
+		en: "PV Generation", de: "PV-Erzeugung",
+		ru: "Выработка ФЭС", pt: "Geração FV",
+		nl: "PV-opwekking", fr: "Production PV",
+		it: "Generazione FV", es: "Generación FV",
+		pl: "Generacja PV", uk: "Виробництво ФЕС", "zh-cn": "光伏发电量",
+	},
+	reportFeedin: {
+		en: "Feed-in Energy", de: "Eingespeiste Energie",
+		ru: "Отданная в сеть энергия", pt: "Energia injetada",
+		nl: "Teruggeleverde energie", fr: "Énergie injectée",
+		it: "Energia immessa", es: "Energía inyectada",
+		pl: "Energia oddana do sieci", uk: "Енергія, відданa в мережу", "zh-cn": "馈入电量",
+	},
+	reportGridConsumption: {
+		en: "Grid Consumption", de: "Netzbezug",
+		ru: "Потребление из сети", pt: "Consumo da rede",
+		nl: "Netverbruik", fr: "Consommation réseau",
+		it: "Consumo dalla rete", es: "Consumo de red",
+		pl: "Zużycie z sieci", uk: "Споживання з мережі", "zh-cn": "电网消耗",
+	},
+	reportChargeEnergy: {
+		en: "Battery Charge Energy", de: "Batterie-Ladeenergie",
+		ru: "Энергия заряда батареи", pt: "Energia de carregamento da bateria",
+		nl: "Batterijlaadenergie", fr: "Énergie de charge de la batterie",
+		it: "Energia di carica della batteria", es: "Energía de carga de la batería",
+		pl: "Energia ładowania akumulatora", uk: "Енергія заряду акумулятора", "zh-cn": "电池充电电量",
+	},
+	reportDischargeEnergy: {
+		en: "Battery Discharge Energy", de: "Batterie-Entladeenergie",
+		ru: "Энергия разряда батареи", pt: "Energia de descarga da bateria",
+		nl: "Batterijontladingsenergie", fr: "Énergie de décharge de la batterie",
+		it: "Energia di scarica della batteria", es: "Energía de descarga de la batería",
+		pl: "Energia rozładowania akumulatora", uk: "Енергія розряду акумулятора", "zh-cn": "电池放电电量",
+	},
+};
+
 class Foxesscloud extends utils.Adapter {
 	/**
 	 * @param {Partial<utils.AdapterOptions>} [options] - Adapter options
@@ -152,427 +327,90 @@ class Foxesscloud extends utils.Adapter {
 	async createStates() {
 		await this.setObjectNotExistsAsync("pvPower", {
 			type: "state",
-			common: {
-				name: {
-					en: "PV Power",
-					de: "PV-Leistung",
-					ru: "Нагрузка на мощность",
-					pt: "Potência de carga",
-					nl: "Belastingsvermogen",
-					fr: "Puissance de charge",
-					it: "Potenza di carico",
-					es: "Potencia de carga",
-					pl: "Moc obciążenia",
-					uk: "Потужність навантаження",
-					"zh-cn": "负载功率",
-				},
-				type: "number",
-				role: "value.power",
-				unit: "kW",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.pvPower, type: "number", role: "value.power", unit: "kW", read: true, write: false },
 			native: {},
 		});
 
 		await this.setObjectNotExistsAsync("generationPower", {
 			type: "state",
-			common: {
-				name: {
-					en: "Generation Power (Output)",
-					de: "Erzeugungsleistung (Ausgang)",
-					ru: "Вырабатываемая мощность (выходная)",
-					pt: "Potência de geração (saída)",
-					nl: "Opwekkingsvermogen (output)",
-					fr: "Puissance de production (sortie)",
-					it: "Potenza di generazione (uscita)",
-					es: "Generación de potencia (salida)",
-					pl: "Moc generowana (wyjście)",
-					uk: "Генерована потужність (вихідна)",
-					"zh-cn": "发电功率（输出）",
-				},
-				type: "number",
-				role: "value.power",
-				unit: "kW",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.generationPower, type: "number", role: "value.power", unit: "kW", read: true, write: false },
 			native: {},
 		});
 
 		await this.setObjectNotExistsAsync("soc", {
 			type: "state",
-			common: {
-				name: {
-					en: "Battery State of Charge",
-					de: "Batterie-Ladezustand",
-					ru: "Уровень заряда батареи",
-					pt: "Estado de carga da bateria",
-					nl: "Batterijlaadstatus",
-					fr: "État de charge de la batterie",
-					it: "Stato di carica della batteria",
-					es: "Estado de carga de la batería",
-					pl: "Stan naładowania baterii",
-					uk: "Стан заряду акумулятора",
-					"zh-cn": "电池电量",
-				},
-				type: "number",
-				role: "value.battery",
-				unit: "%",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.soc, type: "number", role: "value.battery", unit: "%", read: true, write: false },
 			native: {},
 		});
 
 		await this.setObjectNotExistsAsync("load", {
 			type: "state",
-			common: {
-				name: {
-					en: "Load Power",
-					de: "Verbrauchsleistung",
-					ru: "Нагрузка на мощность",
-					pt: "Potência de carga",
-					nl: "Belastingsvermogen",
-					fr: "Puissance de charge",
-					it: "Potenza di carico",
-					es: "Potencia de carga",
-					pl: "Moc obciążenia",
-					uk: "Потужність навантаження",
-					"zh-cn": "负载功率",
-				},
-				type: "number",
-				role: "value.power",
-				unit: "kW",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.load, type: "number", role: "value.power", unit: "kW", read: true, write: false },
 			native: {},
 		});
 
 		await this.setObjectNotExistsAsync("gridConsumption", {
 			type: "state",
-			common: {
-				name: {
-					en: "Grid Consumption Power (Importing)",
-					de: "Netzbezugsleistung (Import)",
-					ru: "Потребление электроэнергии из сети (импорт)",
-					pt: "Consumo de energia da rede (importação)",
-					nl: "Stroomverbruik via het net (import)",
-					fr: "Consommation électrique du réseau (importation)",
-					it: "Consumo di energia dalla rete (importazione)",
-					es: "Consumo de energía de la red (importación)",
-					pl: "Zużycie energii w sieci (import)",
-					uk: "Споживання електроенергії з мережі (імпорт)",
-					"zh-cn": "电网消耗功率（进口）",
-				},
-				type: "number",
-				role: "value.power",
-				unit: "kW",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.gridConsumption, type: "number", role: "value.power", unit: "kW", read: true, write: false },
 			native: {},
 		});
 
 		await this.setObjectNotExistsAsync("feedinPower", {
 			type: "state",
-			common: {
-				name: {
-					en: "Feed-in Power (Exporting)",
-					de: "Einspeiseleistung (Export)",
-					ru: "Поставка электроэнергии в сеть (экспорт)",
-					pt: "Energia de injeção na rede (exportação)",
-					nl: "Teruglevering van elektriciteit (export)",
-					fr: "Puissance injectée (exportation)",
-					it: "Energia immessa (esportazione)",
-					es: "Energía de alimentación (exportación)",
-					pl: "Moc dostarczona (eksport)",
-					uk: "Потужність живлення (експорт)",
-					"zh-cn": "并网电力（出口）",
-				},
-				type: "number",
-				role: "value.power",
-				unit: "kW",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.feedinPower, type: "number", role: "value.power", unit: "kW", read: true, write: false },
 			native: {},
 		});
 
 		await this.setObjectNotExistsAsync("batCharge", {
 			type: "state",
-			common: {
-				name: {
-					en: "Battery Charge Power",
-					de: "Batterie-Ladeleistung",
-					ru: "Зарядка аккумулятора",
-					pt: "Energia de carregamento da bateria",
-					nl: "Batterijlaadvermogen",
-					fr: "Puissance de charge de la batterie",
-					it: "Potenza di carica della batteria",
-					es: "Potencia de carga de la batería",
-					pl: "Moc ładowania akumulatora",
-					uk: "Потужність заряду акумулятора",
-					"zh-cn": "电池充电功率",
-				},
-				type: "number",
-				role: "value.power",
-				unit: "kW",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.batCharge, type: "number", role: "value.power", unit: "kW", read: true, write: false },
 			native: {},
 		});
 
 		await this.setObjectNotExistsAsync("batDischarge", {
 			type: "state",
-			common: {
-				name: {
-					en: "Battery Discharge Power",
-					de: "Batterie-Entladeleistung",
-					ru: "Мощность разряда батареи",
-					pt: "Potência de descarga da bateria",
-					nl: "Batterijontladingsvermogen",
-					fr: "Puissance de décharge de la batterie",
-					it: "Potenza di scarica della batteria",
-					es: "Potencia de descarga de la batería",
-					pl: "Moc rozładowania akumulatora",
-					uk: "Потужність розряду акумулятора",
-					"zh-cn": "电池放电功率",
-				},
-				type: "number",
-				role: "value.power",
-				unit: "kW",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.batDischarge, type: "number", role: "value.power", unit: "kW", read: true, write: false },
 			native: {},
 		});
 
 		await this.setObjectNotExistsAsync("invTemperature", {
 			type: "state",
-			common: {
-				name: {
-					en: "Inverter Internal Temperature",
-					de: "Interne Wechselrichtertemperatur",
-					ru: "Внутренняя температура инвертора",
-					pt: "Temperatura interna do inversor",
-					nl: "Interne omvormertemperatuur",
-					fr: "Temperature interne de l'onduleur",
-					it: "Temperatura interna dell'inverter",
-					es: "Temperatura interna del inversor",
-					pl: "Wewnętrzna temperatura falownika",
-					uk: "Внутрішня температура інвертора",
-					"zh-cn": "逆变器内部温度",
-				},
-				type: "number",
-				role: "value.temperature",
-				unit: "°C",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.invTemperature, type: "number", role: "value.temperature", unit: "°C", read: true, write: false },
 			native: {},
 		});
 
 		await this.setObjectNotExistsAsync("runningState", {
 			type: "state",
-			common: {
-				name: {
-					en: "Running State",
-					de: "Betriebszustand",
-					ru: "Рабочее состояние",
-					pt: "Estado de funcionamento",
-					nl: "Bedrijfsstatus",
-					fr: "État de fonctionnement",
-					it: "Stato operativo",
-					es: "Estado de funcionamiento",
-					pl: "Stan pracy",
-					uk: "Робочий стан",
-					"zh-cn": "运行状态",
-				},
-				type: "string",
-				role: "text",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.runningState, type: "string", role: "text", read: true, write: false },
 			native: {},
 		});
 
 		await this.setObjectNotExistsAsync("batTemperature", {
 			type: "state",
-			common: {
-				name: {
-					en: "Battery Temperature",
-					de: "Batterietemperatur",
-					ru: "Температура батареи",
-					pt: "Temperatura da bateria",
-					nl: "Batterijtemperatuur",
-					fr: "Température de la batterie",
-					it: "Temperatura della batteria",
-					es: "Temperatura de la batería",
-					pl: "Temperatura akumulatora",
-					uk: "Температура акумулятора",
-					"zh-cn": "电池温度",
-				},
-				type: "number",
-				role: "value.temperature",
-				unit: "°C",
-				read: true,
-				write: false,
-			},
+			common: { name: STATE_NAMES.batTemperature, type: "number", role: "value.temperature", unit: "°C", read: true, write: false },
 			native: {},
 		});
 
 		// Create generation report states (day / month / year)
-		const reportPeriods = ["day", "month", "year"];
-		const reportPeriodNames = {
-			day: {
-				en: "Today",
-				de: "Heute",
-				ru: "Сегодня",
-				pt: "Hoje",
-				nl: "Vandaag",
-				fr: "Aujourd'hui",
-				it: "Oggi",
-				es: "Hoy",
-				pl: "Dzisiaj",
-				uk: "Сьогодні",
-				"zh-cn": "今天",
-			},
-			month: {
-				en: "This Month",
-				de: "Dieser Monat",
-				ru: "Этот месяц",
-				pt: "Este mês",
-				nl: "Deze maand",
-				fr: "Ce mois-ci",
-				it: "Questo mese",
-				es: "Este mes",
-				pl: "Ten miesiąc",
-				uk: "Цей місяць",
-				"zh-cn": "本月",
-			},
-			year: {
-				en: "This Year",
-				de: "Dieses Jahr",
-				ru: "Этот год",
-				pt: "Este ano",
-				nl: "Dit jaar",
-				fr: "Cette année",
-				it: "Quest'anno",
-				es: "Este año",
-				pl: "Ten rok",
-				uk: "Цей рік",
-				"zh-cn": "今年",
-			},
-		};
+		const reportPeriodKeys = { day: "reportPeriodDay", month: "reportPeriodMonth", year: "reportPeriodYear" };
 		const reportVariables = [
-			{
-				id: "generation",
-				name: {
-					en: "PV Generation",
-					de: "PV-Erzeugung",
-					ru: "Выработка ФЭС",
-					pt: "Geração FV",
-					nl: "PV-opwekking",
-					fr: "Production PV",
-					it: "Generazione FV",
-					es: "Generación FV",
-					pl: "Generacja PV",
-					uk: "Виробництво ФЕС",
-					"zh-cn": "光伏发电量",
-				},
-			},
-			{
-				id: "feedin",
-				name: {
-					en: "Feed-in Energy",
-					de: "Eingespeiste Energie",
-					ru: "Отданная в сеть энергия",
-					pt: "Energia injetada",
-					nl: "Teruggeleverde energie",
-					fr: "Énergie injectée",
-					it: "Energia immessa",
-					es: "Energía inyectada",
-					pl: "Energia oddana do sieci",
-					uk: "Енергія, відданa в мережу",
-					"zh-cn": "馈入电量",
-				},
-			},
-			{
-				id: "gridConsumption",
-				name: {
-					en: "Grid Consumption",
-					de: "Netzbezug",
-					ru: "Потребление из сети",
-					pt: "Consumo da rede",
-					nl: "Netverbruik",
-					fr: "Consommation réseau",
-					it: "Consumo dalla rete",
-					es: "Consumo de red",
-					pl: "Zużycie z sieci",
-					uk: "Споживання з мережі",
-					"zh-cn": "电网消耗",
-				},
-			},
-			{
-				id: "chargeEnergy",
-				name: {
-					en: "Battery Charge Energy",
-					de: "Batterie-Ladeenergie",
-					ru: "Энергия заряда батареи",
-					pt: "Energia de carregamento da bateria",
-					nl: "Batterijlaadenergie",
-					fr: "Énergie de charge de la batterie",
-					it: "Energia di carica della batteria",
-					es: "Energía de carga de la batería",
-					pl: "Energia ładowania akumulatora",
-					uk: "Енергія заряду акумулятора",
-					"zh-cn": "电池充电电量",
-				},
-			},
-			{
-				id: "dischargeEnergy",
-				name: {
-					en: "Battery Discharge Energy",
-					de: "Batterie-Entladeenergie",
-					ru: "Энергия разряда батареи",
-					pt: "Energia de descarga da bateria",
-					nl: "Batterijontladingsenergie",
-					fr: "Énergie de décharge de la batterie",
-					it: "Energia di scarica della batteria",
-					es: "Energía de descarga de la batería",
-					pl: "Energia rozładowania akumulatora",
-					uk: "Енергія розряду акумулятора",
-					"zh-cn": "电池放电电量",
-				},
-			},
+			{ id: "generation",      nameKey: "reportGeneration" },
+			{ id: "feedin",          nameKey: "reportFeedin" },
+			{ id: "gridConsumption", nameKey: "reportGridConsumption" },
+			{ id: "chargeEnergy",    nameKey: "reportChargeEnergy" },
+			{ id: "dischargeEnergy", nameKey: "reportDischargeEnergy" },
 		];
-		for (const period of reportPeriods) {
+		const langs = ["en", "de", "ru", "pt", "nl", "fr", "it", "es", "pl", "uk", "zh-cn"];
+		for (const [period, periodKey] of Object.entries(reportPeriodKeys)) {
 			for (const variable of reportVariables) {
+				const name = /** @type {Record<string, string>} */ ({});
+				for (const lang of langs) {
+					const sep = lang === "zh-cn" ? "" : " ";
+					name[lang] = `${STATE_NAMES[periodKey][lang]}${sep}${STATE_NAMES[variable.nameKey][lang]}`;
+				}
 				await this.setObjectNotExistsAsync(`report.${period}.${variable.id}`, {
 					type: "state",
-					common: {
-						name: {
-							en: `${reportPeriodNames[period].en} ${variable.name.en}`,
-							de: `${reportPeriodNames[period].de} ${variable.name.de}`,
-							ru: `${reportPeriodNames[period].ru} ${variable.name.ru}`,
-							pt: `${reportPeriodNames[period].pt} ${variable.name.pt}`,
-							nl: `${reportPeriodNames[period].nl} ${variable.name.nl}`,
-							fr: `${reportPeriodNames[period].fr} ${variable.name.fr}`,
-							it: `${reportPeriodNames[period].it} ${variable.name.it}`,
-							es: `${reportPeriodNames[period].es} ${variable.name.es}`,
-							pl: `${reportPeriodNames[period].pl} ${variable.name.pl}`,
-							uk: `${reportPeriodNames[period].uk} ${variable.name.uk}`,
-							"zh-cn": `${reportPeriodNames[period]["zh-cn"]}${variable.name["zh-cn"]}`,
-						},
-						type: "number",
-						role: "value.energy",
-						unit: "kWh",
-						read: true,
-						write: false,
-					},
+					common: { name, type: "number", role: "value.energy", unit: "kWh", read: true, write: false },
 					native: {},
 				});
 			}
@@ -583,16 +421,7 @@ class Foxesscloud extends utils.Adapter {
 			if (this.config.pvPowerJSON_daily) {
 				await this.setObjectNotExistsAsync("pvPowerJSON.daily", {
 					type: "state",
-					common: {
-						name: {
-							en: "Daily PV Power Statistics (JSON)",
-							de: "Tägliche PV-Leistungsstatistiken (JSON)",
-						},
-						type: "string",
-						role: "json",
-						read: true,
-						write: false,
-					},
+					common: { name: STATE_NAMES.pvPowerJsonDaily, type: "string", role: "json", read: true, write: false },
 					native: {},
 				});
 			}
@@ -600,16 +429,7 @@ class Foxesscloud extends utils.Adapter {
 			if (this.config.pvPowerJSON_weekly) {
 				await this.setObjectNotExistsAsync("pvPowerJSON.weekly", {
 					type: "state",
-					common: {
-						name: {
-							en: "Weekly PV Power Statistics (JSON)",
-							de: "Wöchentliche PV-Leistungsstatistiken (JSON)",
-						},
-						type: "string",
-						role: "json",
-						read: true,
-						write: false,
-					},
+					common: { name: STATE_NAMES.pvPowerJsonWeekly, type: "string", role: "json", read: true, write: false },
 					native: {},
 				});
 			}
@@ -617,16 +437,7 @@ class Foxesscloud extends utils.Adapter {
 			if (this.config.pvPowerJSON_monthly) {
 				await this.setObjectNotExistsAsync("pvPowerJSON.monthly", {
 					type: "state",
-					common: {
-						name: {
-							en: "Monthly PV Power Statistics (JSON)",
-							de: "Monatliche PV-Leistungsstatistiken (JSON)",
-						},
-						type: "string",
-						role: "json",
-						read: true,
-						write: false,
-					},
+					common: { name: STATE_NAMES.pvPowerJsonMonthly, type: "string", role: "json", read: true, write: false },
 					native: {},
 				});
 			}
@@ -634,16 +445,7 @@ class Foxesscloud extends utils.Adapter {
 			// Internal state to persist running totals across adapter restarts
 			await this.setObjectNotExistsAsync("pvPowerJSON._runningState", {
 				type: "state",
-				common: {
-					name: {
-						en: "PV Power Statistics Running State (internal)",
-						de: "PV-Statistiken Laufzustand (intern)",
-					},
-					type: "string",
-					role: "json",
-					read: true,
-					write: false,
-				},
+				common: { name: STATE_NAMES.pvPowerJsonRunningState, type: "string", role: "json", read: true, write: false },
 				native: {},
 			});
 
@@ -798,28 +600,13 @@ class Foxesscloud extends utils.Adapter {
 					if (pvStringData && pvStringData.value !== undefined) {
 						const stateId = `pv${i}Power`;
 						if (!this.createdPvStates.has(stateId)) {
+							const pvStringName = /** @type {Record<string, string>} */ ({});
+							for (const lang of Object.keys(STATE_NAMES.pvStringPower)) {
+								pvStringName[lang] = STATE_NAMES.pvStringPower[lang].replace("{n}", String(i));
+							}
 							await this.setObjectNotExistsAsync(stateId, {
 								type: "state",
-								common: {
-									name: {
-										en: `PV String ${i} Power`,
-										de: `PV-String ${i} Leistung`,
-										ru: `Мощность PV-строки ${i}`,
-										pt: `Potência do string PV ${i}`,
-										nl: `PV-string ${i} vermogen`,
-										fr: `Puissance chaîne PV ${i}`,
-										it: `Potenza stringa PV ${i}`,
-										es: `Potencia cadena FV ${i}`,
-										pl: `Moc łańcucha PV ${i}`,
-										uk: `Потужність рядка PV ${i}`,
-										"zh-cn": `PV 串列 ${i} 功率`,
-									},
-									type: "number",
-									role: "value.power",
-									unit: "kW",
-									read: true,
-									write: false,
-								},
+								common: { name: pvStringName, type: "number", role: "value.power", unit: "kW", read: true, write: false },
 								native: {},
 							});
 							this.createdPvStates.add(stateId);
