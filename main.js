@@ -699,48 +699,37 @@ class Foxesscloud extends utils.Adapter {
 		const yearKey = `${now.getFullYear()}`;
 
 		const b = this.reportBaselines;
+
+		// Only update a period's report state when its key rolls over (or on first run when null).
+		// Between rollovers the state is left untouched — manual edits are preserved.
+		const rollovers = [
+			["day",   dayKey,   "dayKey"],
+			["week",  weekKey,  "weekKey"],
+			["month", monthKey, "monthKey"],
+			["year",  yearKey,  "yearKey"],
+		];
+
 		let baselinesChanged = false;
 
-		// Reset baselines on period rollover (or first run when null)
-		if (b.dayKey !== dayKey) {
-			b.day = { generation, feedin, gridConsumption };
-			b.dayKey = dayKey;
-			baselinesChanged = true;
-		}
-		if (b.weekKey !== weekKey) {
-			b.week = { generation, feedin, gridConsumption };
-			b.weekKey = weekKey;
-			baselinesChanged = true;
-		}
-		if (b.monthKey !== monthKey) {
-			b.month = { generation, feedin, gridConsumption };
-			b.monthKey = monthKey;
-			baselinesChanged = true;
-		}
-		if (b.yearKey !== yearKey) {
-			b.year = { generation, feedin, gridConsumption };
-			b.yearKey = yearKey;
-			baselinesChanged = true;
+		for (const [period, currentKey, keyField] of rollovers) {
+			if (b[keyField] !== currentKey) {
+				// Compute and write the completed period total before resetting the baseline
+				if (b[keyField] !== null) {
+					await this.setState(`report.${period}.generation`,      parseFloat((generation      - b[period].generation).toFixed(3)),      true);
+					await this.setState(`report.${period}.feedin`,          parseFloat((feedin          - b[period].feedin).toFixed(3)),          true);
+					await this.setState(`report.${period}.gridConsumption`, parseFloat((gridConsumption - b[period].gridConsumption).toFixed(3)), true);
+				}
+				b[period] = { generation, feedin, gridConsumption };
+				b[keyField] = currentKey;
+				baselinesChanged = true;
+			}
 		}
 
 		if (baselinesChanged) {
 			await this.saveReportBaselines();
 		}
 
-		const periods = [
-			["day", b.day],
-			["week", b.week],
-			["month", b.month],
-			["year", b.year],
-		];
-
-		for (const [period, baseline] of periods) {
-			await this.setState(`report.${period}.generation`,      parseFloat((generation      - baseline.generation).toFixed(3)),      true);
-			await this.setState(`report.${period}.feedin`,          parseFloat((feedin          - baseline.feedin).toFixed(3)),          true);
-			await this.setState(`report.${period}.gridConsumption`, parseFloat((gridConsumption - baseline.gridConsumption).toFixed(3)), true);
-		}
-
-		this.log.debug("Report states updated");
+		this.log.debug("Report baselines checked");
 	}
 
 	/**
