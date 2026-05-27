@@ -131,6 +131,13 @@ const STATE_NAMES = {
 		it: "Oggi", es: "Hoy",
 		pl: "Dzisiaj", uk: "Сьогодні", "zh-cn": "今天",
 	},
+	reportPeriodWeek: {
+		en: "This Week", de: "Diese Woche",
+		ru: "Эта неделя", pt: "Esta semana",
+		nl: "Deze week", fr: "Cette semaine",
+		it: "Questa settimana", es: "Esta semana",
+		pl: "Ten tydzień", uk: "Цей тиждень", "zh-cn": "本周",
+	},
 	reportPeriodMonth: {
 		en: "This Month", de: "Dieser Monat",
 		ru: "Этот месяц", pt: "Este mês",
@@ -167,19 +174,12 @@ const STATE_NAMES = {
 		it: "Consumo dalla rete", es: "Consumo de red",
 		pl: "Zużycie z sieci", uk: "Споживання з мережі", "zh-cn": "电网消耗",
 	},
-	reportChargeEnergy: {
-		en: "Battery Charge Energy", de: "Batterie-Ladeenergie",
-		ru: "Энергия заряда батареи", pt: "Energia de carregamento da bateria",
-		nl: "Batterijlaadenergie", fr: "Énergie de charge de la batterie",
-		it: "Energia di carica della batteria", es: "Energía de carga de la batería",
-		pl: "Energia ładowania akumulatora", uk: "Енергія заряду акумулятора", "zh-cn": "电池充电电量",
-	},
-	reportDischargeEnergy: {
-		en: "Battery Discharge Energy", de: "Batterie-Entladeenergie",
-		ru: "Энергия разряда батареи", pt: "Energia de descarga da bateria",
-		nl: "Batterijontladingsenergie", fr: "Énergie de décharge de la batterie",
-		it: "Energia di scarica della batteria", es: "Energía de descarga de la batería",
-		pl: "Energia rozładowania akumulatora", uk: "Енергія розряду акумулятора", "zh-cn": "电池放电电量",
+	reportBaselines: {
+		en: "Report Baselines (internal)", de: "Berichts-Baselines (intern)",
+		ru: "Базовые значения отчёта (внутр.)", pt: "Linhas de base do relatório (interno)",
+		nl: "Rapportage basiswaarden (intern)", fr: "Valeurs de base du rapport (interne)",
+		it: "Valori base report (interno)", es: "Valores base del informe (interno)",
+		pl: "Wartości bazowe raportu (wewnętrzne)", uk: "Базові значення звіту (внутр.)", "zh-cn": "报告基线（内部）",
 	},
 };
 
@@ -199,7 +199,15 @@ class Foxesscloud extends utils.Adapter {
 		this.systemLanguage = "en";
 		this.lastTempWarningLevel = 0;
 		this.createdPvStates = new Set();
-		this.lastReportDate = null;
+
+		// Baselines for report delta calculations (lifetime values at period start)
+		this.reportBaselines = {
+			dayKey: null, weekKey: null, monthKey: null, yearKey: null,
+			day: { generation: null, feedin: null, gridConsumption: null },
+			week: { generation: null, feedin: null, gridConsumption: null },
+			month: { generation: null, feedin: null, gridConsumption: null },
+			year: { generation: null, feedin: null, gridConsumption: null },
+		};
 
 		// PV Power JSON tracking
 		this.pvPowerJsonData = {
@@ -302,6 +310,7 @@ class Foxesscloud extends utils.Adapter {
 
 		// Create states
 		await this.createStates();
+		await this.restoreReportBaselines();
 
 		// Get interval from config (default 60 seconds, minimum 60 seconds, maximum 2_147_483_647 ms)
 		let intervalSeconds = Math.max(60, this.config.interval || 60);
@@ -379,14 +388,17 @@ class Foxesscloud extends utils.Adapter {
 			native: {},
 		});
 
-		// Create generation report states (day / month / year)
-		const reportPeriodKeys = { day: "reportPeriodDay", month: "reportPeriodMonth", year: "reportPeriodYear" };
+		// Create report states (day / week / month / year) calculated from lifetime deltas
+		const reportPeriodKeys = {
+			day: "reportPeriodDay",
+			week: "reportPeriodWeek",
+			month: "reportPeriodMonth",
+			year: "reportPeriodYear",
+		};
 		const reportVariables = [
 			{ id: "generation",      nameKey: "reportGeneration" },
 			{ id: "feedin",          nameKey: "reportFeedin" },
 			{ id: "gridConsumption", nameKey: "reportGridConsumption" },
-			{ id: "chargeEnergy",    nameKey: "reportChargeEnergy" },
-			{ id: "dischargeEnergy", nameKey: "reportDischargeEnergy" },
 		];
 		const langs = ["en", "de", "ru", "pt", "nl", "fr", "it", "es", "pl", "uk", "zh-cn"];
 		for (const [period, periodKey] of Object.entries(reportPeriodKeys)) {
@@ -403,6 +415,13 @@ class Foxesscloud extends utils.Adapter {
 				});
 			}
 		}
+
+		// Internal state to persist report baselines across restarts
+		await this.setObjectNotExistsAsync("report._baselines", {
+			type: "state",
+			common: { name: STATE_NAMES.reportBaselines, type: "string", role: "json", read: true, write: false },
+			native: {},
+		});
 
 		// Create JSON states for PV power statistics
 		if (this.config.enablePvPowerJSON) {
@@ -462,6 +481,9 @@ class Foxesscloud extends utils.Adapter {
 					"batTemperature",
 					"invTemperation",
 					"runningState",
+					"generation",
+					"feedin",
+					"gridConsumption",
 				],
 			});
 
@@ -637,15 +659,16 @@ class Foxesscloud extends utils.Adapter {
 
 				this.log.debug("Data successfully updated");
 
-				// Trigger generation report on first call and at midnight rollover
-				const todayKey = this.getDateKey(new Date());
-				if (this.lastReportDate !== todayKey) {
-					this.lastReportDate = todayKey;
-					this.getGenerationReport().catch(err => {
-						this.log.warn(
-							`Error fetching generation report: ${err instanceof Error ? err.message : String(err)}`,
-						);
-					});
+				// Update report states from lifetime totals (no extra API calls)
+				const genData = getDataPointByVariable("generation");
+				const feedinData = getDataPointByVariable("feedin");
+				const gridData = getDataPointByVariable("gridConsumption");
+				if (genData !== undefined && feedinData !== undefined && gridData !== undefined) {
+					this.updateReportStates(
+						Number(genData.value),
+						Number(feedinData.value),
+						Number(gridData.value),
+					);
 				}
 			} catch (parseError) {
 				this.log.error(
@@ -660,79 +683,100 @@ class Foxesscloud extends utils.Adapter {
 	}
 
 	/**
-	 * Fetch generation report (today / this month / this year) from the FoxESS report API.
-	 * Called once per calendar day to avoid burning the 1440 calls/day quota.
+	 * Update report states for day/week/month/year using lifetime totals from the real-time API.
+	 * No extra API calls — computes period totals as (currentLifetime - baselineAtPeriodStart).
+	 * Baselines are reset automatically at period rollover and persisted across restarts.
 	 *
-	 * The API returns per-period arrays (hourly for day, daily for month, monthly for year).
-	 * We sum the values to get the period total.
+	 * @param {number} generation - Lifetime PV generation in kWh
+	 * @param {number} feedin - Lifetime feed-in energy in kWh
+	 * @param {number} gridConsumption - Lifetime grid consumption in kWh
 	 */
-	async getGenerationReport() {
+	async updateReportStates(generation, feedin, gridConsumption) {
 		const now = new Date();
-		const year = now.getFullYear();
-		const month = now.getMonth() + 1;
-		const day = now.getDate();
-		const variables = ["generation", "feedin", "gridConsumption", "chargeEnergyToTal", "dischargeEnergyToTal"];
+		const dayKey = this.getDateKey(now);
+		const weekKey = this.getWeekKey(now);
+		const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+		const yearKey = `${now.getFullYear()}`;
 
-		// Map API variable names to state IDs
-		const variableToStateId = {
-			generation: "generation",
-			feedin: "feedin",
-			gridConsumption: "gridConsumption",
-			chargeEnergyToTal: "chargeEnergy",
-			dischargeEnergyToTal: "dischargeEnergy",
-		};
+		const b = this.reportBaselines;
+		let baselinesChanged = false;
 
-		const [dayJson, monthJson, yearJson] = await Promise.all([
-			this.makeApiRequest("/op/v0/device/report/query", "POST", {
-				sn: this.config.sn,
-				year,
-				month,
-				day,
-				dimension: "day",
-				variables,
-			}),
-			this.makeApiRequest("/op/v0/device/report/query", "POST", {
-				sn: this.config.sn,
-				year,
-				month,
-				day: 1,
-				dimension: "month",
-				variables,
-			}),
-			this.makeApiRequest("/op/v0/device/report/query", "POST", {
-				sn: this.config.sn,
-				year,
-				month: 1,
-				day: 1,
-				dimension: "year",
-				variables,
-			}),
-		]);
-
-		for (const [period, response] of [
-			["day", dayJson],
-			["month", monthJson],
-			["year", yearJson],
-		]) {
-			if (!response || response.errno !== 0 || !Array.isArray(response.result)) {
-				this.log.warn(
-					`Generation report (${period}) returned unexpected response: ${JSON.stringify(response)}`,
-				);
-				continue;
-			}
-
-			// Each result entry is { variable, unit, values: number[] } — sum the values array for the period total
-			for (const entry of response.result) {
-				const stateId = variableToStateId[entry.variable];
-				if (!stateId || !Array.isArray(entry.values)) {
-					continue;
-				}
-				const total = entry.values.reduce((sum, v) => sum + (v || 0), 0);
-				await this.setState(`report.${period}.${stateId}`, parseFloat(total.toFixed(3)), true);
-			}
+		// Reset baselines on period rollover (or first run when null)
+		if (b.dayKey !== dayKey) {
+			b.day = { generation, feedin, gridConsumption };
+			b.dayKey = dayKey;
+			baselinesChanged = true;
+		}
+		if (b.weekKey !== weekKey) {
+			b.week = { generation, feedin, gridConsumption };
+			b.weekKey = weekKey;
+			baselinesChanged = true;
+		}
+		if (b.monthKey !== monthKey) {
+			b.month = { generation, feedin, gridConsumption };
+			b.monthKey = monthKey;
+			baselinesChanged = true;
+		}
+		if (b.yearKey !== yearKey) {
+			b.year = { generation, feedin, gridConsumption };
+			b.yearKey = yearKey;
+			baselinesChanged = true;
 		}
 
-		this.log.debug("Generation report updated");
+		if (baselinesChanged) {
+			await this.saveReportBaselines();
+		}
+
+		const periods = [
+			["day", b.day],
+			["week", b.week],
+			["month", b.month],
+			["year", b.year],
+		];
+
+		for (const [period, baseline] of periods) {
+			await this.setState(`report.${period}.generation`,      parseFloat((generation      - baseline.generation).toFixed(3)),      true);
+			await this.setState(`report.${period}.feedin`,          parseFloat((feedin          - baseline.feedin).toFixed(3)),          true);
+			await this.setState(`report.${period}.gridConsumption`, parseFloat((gridConsumption - baseline.gridConsumption).toFixed(3)), true);
+		}
+
+		this.log.debug("Report states updated");
+	}
+
+	/**
+	 * Restore report baselines from persisted ioBroker state so period totals survive restarts.
+	 */
+	async restoreReportBaselines() {
+		const state = await this.getStateAsync("report._baselines");
+		if (state && state.val) {
+			try {
+				const saved = JSON.parse(/** @type {string} */ (state.val));
+				// Only restore if the period keys still match — if the adapter was offline
+				// across a rollover, the next updateReportStates() call will reset them.
+				this.reportBaselines = {
+					dayKey:   saved.dayKey   ?? null,
+					weekKey:  saved.weekKey  ?? null,
+					monthKey: saved.monthKey ?? null,
+					yearKey:  saved.yearKey  ?? null,
+					day:   saved.day   ?? { generation: null, feedin: null, gridConsumption: null },
+					week:  saved.week  ?? { generation: null, feedin: null, gridConsumption: null },
+					month: saved.month ?? { generation: null, feedin: null, gridConsumption: null },
+					year:  saved.year  ?? { generation: null, feedin: null, gridConsumption: null },
+				};
+				this.log.debug("Report baselines restored from persisted state.");
+			} catch (e) {
+				this.log.warn(`Failed to restore report baselines: ${e instanceof Error ? e.message : String(e)}`);
+			}
+		} else {
+			this.log.debug("No persisted report baselines found – will initialise on first poll.");
+		}
+	}
+
+	/**
+	 * Persist report baselines to an ioBroker state so they survive adapter restarts.
+	 */
+	async saveReportBaselines() {
+		await this.setState("report._baselines", JSON.stringify(this.reportBaselines), true);
 	}
 
 	/**
